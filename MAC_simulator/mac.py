@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from node import Transmission, Message, Node, NodeState
+from node import Transmission, Message, Node, NodeState, ALOHA
 
 # Parameters
 
@@ -42,10 +42,10 @@ class Visualizer:
         colours = [node.get_color_based_on_state() for node in nodes]
 
         established_links = [
-            (node.receive_buffer.source.x_pos,
-             node.receive_buffer.source.y_pos,
-             node.x_pos - node.receive_buffer.source.x_pos,
-             node.y_pos - node.receive_buffer.source.y_pos)
+            (node.currently_receiving.source.x_pos,
+             node.currently_receiving.source.y_pos,
+             node.x_pos - node.currently_receiving.source.x_pos,
+             node.y_pos - node.currently_receiving.source.y_pos)
             for node in nodes if node.state == NodeState.Receiving]
 
         self.ax.clear()
@@ -65,7 +65,7 @@ class Visualizer:
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-        plt.pause(0.5)
+        plt.pause(2)
 
 
 def main():
@@ -78,12 +78,18 @@ def main():
     num_of_transmissions_per_node = 1  # Number of transmissions a node will make
     propagation_time = 1  # Measured in units/time (5 means the message travels 5 units per loop iteration)
 
-    nodes = [Node(0, NodeState.Idle, radius, transceive_range, 1, 1, [], None, [], 0),
-             Node(1, NodeState.Idle, radius, transceive_range, 1, 2, [], None, [], 0),
-             Node(2, NodeState.Idle, radius, transceive_range, 1, 4, [], None, [], 0)]
+    nodes = [Node(0, NodeState.Idle, radius, transceive_range, 1, 1, [], None, [], 0, ALOHA()),
+             Node(1, NodeState.Idle, radius, transceive_range, 1, 2, [], None, [], 0, ALOHA()),
+             Node(2, NodeState.Idle, radius, transceive_range, 1, 4, [], None, [], 0, ALOHA())]
 
-    nodes[0].send_schedule.append(Transmission(0, nodes[0], 3, 0, Message("hello", 5)))
-    nodes[2].send_schedule.append(Transmission(0, nodes[2], 4, 0, Message("hello", 5)))
+    # nodes[0].send_schedule.append(Transmission(0, nodes[0], 3, 0, Message("hello", 5)))
+    # nodes[2].send_schedule.append(Transmission(0, nodes[2], 4, 0, Message("hello", 5)))
+
+    nodes[0].protocol.generate_packet(Message("hello", 5))
+    nodes[0].protocol.backoff = 2
+    nodes[2].protocol.generate_packet(Message("hello", 5))
+    nodes[2].protocol.backoff = 12
+
 
     # Add neighbors to nodes
     for node in nodes:
