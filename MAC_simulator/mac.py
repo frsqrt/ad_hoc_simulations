@@ -18,6 +18,7 @@ propagation_time = 1  # Measured in units/time (5 means the message travels 5 un
 nodes = []
 
 # Generate random positions while ensuring the minimum distance
+"""
 for i in range(0, N):
     new_node = n.create_new_node(i, radius, transceive_range, X, Y)
     while (n.can_add_node_without_overlap(new_node, nodes, min_distance) == False):
@@ -29,6 +30,14 @@ for i in range(0, N):
     nodes.append(new_node)
 
 nodes[0].send_schedule.append(n.Transmission(0, nodes[0], 7, 0, n.Message("HALLO", 7)))
+"""
+
+nodes.append(n.Node(0, n.NodeState.Idle, radius, transceive_range, 1, 1, [], None, [], 0))
+nodes.append(n.Node(1, n.NodeState.Idle, radius, transceive_range, 1, 2, [], None, [], 0))
+nodes.append(n.Node(2, n.NodeState.Idle, radius, transceive_range, 1, 4, [], None, [], 0))
+
+nodes[0].send_schedule.append(n.Transmission(0, nodes[0], 3, 0, n.Message("hello", 5)))
+nodes[2].send_schedule.append(n.Transmission(0, nodes[2], 4, 0, n.Message("hello", 5)))
 
 # Add neighbors to nodes
 for node in nodes:
@@ -92,46 +101,12 @@ while (1):
 
     # Plot each circle
     for node in nodes:
-
         if node.state == n.NodeState.Idle:
-            # Check if node can receive
-            for transmission in active_transmissions:
-                # Sanity check that we can receive the transmission
-                if transmission.source not in node.neighbors:
-                    continue
-
-                # Check whether we can already receive the message
-                transmission_propagation_time = simulation_time - transmission.actual_transmit_time
-
-                if transmission_propagation_time >= n.get_distance_between_nodes(transmission.source, node):
-                    node.state = n.NodeState.Receiving
-                    node.state_counter = transmission.message.length
-                    node.receive_buffer = transmission
-
-            if node.state != n.NodeState.Receiving:
-                # Check if node wants to send
-                for transmission in node.send_schedule:
-                    if transmission.planned_transmit_time <= simulation_time:
-                        transmission.actual_transmit_time = simulation_time
-                        active_transmissions.append(transmission)
-                        node.send_schedule.remove(transmission)
-                        node.state = n.NodeState.Sending
-                        node.state_counter = transmission.message.length
-
+            n.idle_state(simulation_time, node, active_transmissions)
         elif node.state == n.NodeState.Sending:
-            node.state_counter -= 1
-            if node.state_counter == 0:
-                node.state = n.NodeState.Idle
+            n.sending_state(node)
         elif node.state == n.NodeState.Receiving:
-            # TODO: check for collisions
-
-            node.state_counter -= 1
-            if node.state_counter == 0:
-                # TODO: if data was received, send ACK, don't go idle
-                node.state = n.NodeState.Idle
-
-                # TODO change removal to only occur when message has existed longer than diameter of network + data transmission length
-                active_transmissions.remove(node.receive_buffer)
+            n.receiving_state(simulation_time, node, active_transmissions)
 
     # TODO create separate draw function.
     vis.draw_function(nodes)

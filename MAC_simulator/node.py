@@ -6,6 +6,7 @@ class NodeState(Enum):
     Idle = 1
     Sending = 2
     Receiving = 3
+    Waiting = 4
 
 @dataclass
 class Message:
@@ -24,6 +25,9 @@ class Node:
     receive_buffer: object
     send_schedule: list
     state_counter: int
+
+    def get_packet_arrival_time(self, sender) -> int:
+        return int(get_distance_between_nodes(self, sender))
 
     def add_neighbors(self, nodes):
         for node in nodes:
@@ -64,4 +68,67 @@ def can_add_node_without_overlap(new_node: Node, node_list: list, min_distance: 
         # Check if the distance between the new node and an existing node is less than the sum of their radii plus the minimum distance
         if distance < (new_node.radius + node.radius + min_distance):
             return False  # Overlap or too close detected
-    return True  # No overlap and minimum distance maintained
+    return True # No overlap and minimum distance maintained
+
+
+def idle_state(simulation_time: int, node: Node, active_transmissions: list[Transmission]):
+    # Check if node can receive
+    for transmission in active_transmissions:
+        # Sanity check that we can receive the transmission
+        if transmission.source not in node.neighbors:
+            continue
+
+        # Check whether we can already receive the message
+        transmission_propagation_time = simulation_time - transmission.actual_transmit_time
+        if transmission_propagation_time == node.get_packet_arrival_time(transmission.source):
+            # Check whether the node was able to receive a message in a previous iteration. If so -> collision
+            if node.state == NodeState.Receiving:
+                print("collision in idle state")
+                node.state = NodeState.Idle
+                node.receive_buffer = None
+                node.state_counter = 0
+                return
+
+            node.state = NodeState.Receiving
+            node.state_counter = transmission.message.length
+            node.receive_buffer = transmission
+            
+
+    # Check if node wants to send
+    for transmission in node.send_schedule:
+        if transmission.planned_transmit_time <= simulation_time:
+            transmission.actual_transmit_time = simulation_time
+            active_transmissions.append(transmission)
+            node.send_schedule.remove(transmission)
+            node.state = NodeState.Sending
+            node.state_counter = transmission.message.length
+
+def sending_state(node: Node):
+    node.state_counter -= 1
+    if node.state_counter == 0:
+        node.state = NodeState.Idle
+
+def receiving_state(simulation_time: int, node: Node, active_transmissions: list[Transmission]):
+    # Check for collisions
+    for transmission in active_transmissions:
+        # Sanity check that we can receive the transmission
+        if transmission.source not in node.neighbors:
+            continue
+
+        if transmission == node.receive_buffer:
+            continue
+
+        # Check whether we can already receive the message
+        transmission_propagation_time = simulation_time - transmission.actual_transmit_time
+        if transmission_propagation_time == node.get_packet_arrival_time(transmission.source):
+            print("collision in receive state")
+            node.state = NodeState.Idle
+            node.state_counter = 0
+            node.receive_buffer = None
+            return
+
+    node.state_counter -= 1
+    if node.state_counter == 0:
+        # TODO: if data was received, send ACK, don't go idle
+        node.state = NodeState.Idle
+        # active_transmissions.remove(node.receive_buffer)
