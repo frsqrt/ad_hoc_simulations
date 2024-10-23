@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
-from node import Transmission, Message, Node, NodeState, ALOHA, HighLevelMessage
+
+from node import Node, NodeState
+from protocols import ALOHA, HighLevelMessage
 
 # Parameters
 
@@ -82,16 +84,9 @@ def main():
              Node(1, NodeState.Idle, radius, transceive_range, 1, 2, [], None, [], 0, ALOHA(1)),
              Node(2, NodeState.Idle, radius, transceive_range, 1, 4, [], None, [], 0, ALOHA(2))]
 
-    # nodes[0].send_schedule.append(Transmission(0, nodes[0], 3, 0, Message("hello", 5)))
-    # nodes[2].send_schedule.append(Transmission(0, nodes[2], 4, 0, Message("hello", 5)))
-
     nodes[0].protocol.generate_packet(HighLevelMessage(2, "hello", 5))
     nodes[0].protocol.backoff = 2
-    # nodes[2].protocol.generate_packet(Message("hello", 5))
-    # nodes[2].protocol.backoff = 12
 
-
-    # Add neighbors to nodes
     for node in nodes:
         node.add_neighbors(nodes)
 
