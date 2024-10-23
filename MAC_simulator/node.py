@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 import numpy as np
@@ -13,9 +14,25 @@ class NodeState(Enum):
 
 
 @dataclass
-class Message:
+class HighLevelMessage:
+    target: int
     content: str
     length: int
+
+
+@dataclass
+class Message:
+    """
+    This message class is utilized by the protocol layer in order to communicate
+    """
+    target: int
+    source: int
+    sequence_number: int
+    content: str
+    length: int
+
+    def get_ack(self):
+        return Message(self.source, self.target, self.sequence_number, 'ack', 1)
 
 
 class MACProtocol(Protocol):
@@ -23,7 +40,7 @@ class MACProtocol(Protocol):
     buffer: list
     backoff: int
 
-    def generate_packet(self, message: Message):
+    def generate_packet(self, message: HighLevelMessage):
         """
         This tells the protocol to generate a packet with the given message.
         The protocol then internally has to push the correct packet, like maybe an RTS into the sending queue
@@ -52,23 +69,50 @@ class MACProtocol(Protocol):
 
 
 class ALOHA:
-    def __init__(self):
-        self.backoff = 2
-        self.buffer = []
+    def __init__(self, identifier: int):
+        self.id = identifier
+        self.backoff = randint(1, 16)
+        self.ack_await_counter = 0
+        self.buffer: list[Message] = []
+        self.sequence_number = 0
 
-    def generate_packet(self, message: Message):
+    def get_next_sequence_number(self):
+        self.sequence_number += 1
+        return self.sequence_number
+
+    def generate_packet(self, message: HighLevelMessage):
+        message = Message(message.target, self.id, self.get_next_sequence_number(), message.content, message.length)
         self.buffer.append(message)
 
     def receive_packet(self, message: Message) -> None:
-        pass
+        if message.target != self.id:
+            return
+        # technically a message needs a sequence number,
+        # in theory a stray ack might now delete a random message in the buffer
+        if self.buffer and message.source == self.buffer[0].target and message.content == 'ack':
+            print(f'{self.id} received ack')
+            self.ack_await_counter = 0
+            del self.buffer[0]
+            return
+
+        # in all other scenarios it was a message intended for us so we push an ack to the buffer
+        print(f'{self.id} pushing ack to buffer')
+        self.buffer.insert(0, message.get_ack())
+        self.backoff = 0
 
     def send_packet(self) -> Message:
+        # if awaiting an ack we should pause the whole system
+        if self.ack_await_counter:
+            self.ack_await_counter -= 1
+            return
         if not self.buffer:
             return
-        self.backoff -= 1
+
+        self.backoff = max(0, self.backoff-1)
         if self.backoff == 0:
             self.backoff = randint(1, 16)
-            return self.buffer.pop(0)
+            self.ack_await_counter = 50
+            return self.buffer[0]
 
 
 @dataclass
@@ -89,6 +133,9 @@ class Node:
         # Check if node can receive
         collision = self.has_collided(simulation_time, active_transmissions)
 
+        if self.protocol.buffer:
+            x = 12
+
         if collision:
             return
 
@@ -99,7 +146,6 @@ class Node:
 
             transmission = Transmission(0, self, simulation_time, simulation_time, packet)
             active_transmissions.append(transmission)
-            # packet.actual_transmit_time = simulation_time
 
     def sending_state(self):
         self.state_counter -= 1
@@ -112,7 +158,6 @@ class Node:
             return None
 
         print(f'{self.id} is receiving')
-
 
         self.state_counter -= 1
         if self.state_counter == 0:
@@ -143,9 +188,6 @@ class Node:
             return simulation_time in list(range(lb, ub)) and t.source in self.neighbors
 
         current_packets: list[Transmission] = [t for t in active_transmissions if predicate_close_and_arriving(t)]
-
-        if simulation_time == 20:
-            z = 4
 
         match current_packets:
             case []:
