@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 from node import Node, NodeState
-from protocols import ALOHA, HighLevelMessage
+from protocols import ALOHA, HighLevelMessage, RTC_CTS_ALOHA
 
 # Parameters
 
@@ -67,7 +67,7 @@ class Visualizer:
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-        plt.pause(1)
+        plt.pause(0.2)
 
 
 def main():
@@ -80,12 +80,14 @@ def main():
     num_of_transmissions_per_node = 1  # Number of transmissions a node will make
     propagation_time = 1  # Measured in units/time (5 means the message travels 5 units per loop iteration)
 
-    nodes = [Node(0, NodeState.Idle, radius, transceive_range, 1, 1, [], None, [], 0, ALOHA(0)),
-             Node(1, NodeState.Idle, radius, transceive_range, 1, 2, [], None, [], 0, ALOHA(1)),
-             Node(2, NodeState.Idle, radius, transceive_range, 1, 4, [], None, [], 0, ALOHA(2))]
+    nodes = [Node(0, NodeState.Idle, radius, transceive_range, 1, 1, [], None, [], 0, RTC_CTS_ALOHA(0)),
+             Node(1, NodeState.Idle, radius, transceive_range, 1, 2, [], None, [], 0, RTC_CTS_ALOHA(1)),
+             Node(2, NodeState.Idle, radius, transceive_range, 1, 4, [], None, [], 0, RTC_CTS_ALOHA(2))]
 
     nodes[0].protocol.generate_packet(HighLevelMessage(2, "hello", 5))
     nodes[0].protocol.backoff = 2
+    nodes[1].protocol.generate_packet(HighLevelMessage(2, "hello", 5))
+    nodes[1].protocol.backoff = 3
 
     for node in nodes:
         node.add_neighbors(nodes)

@@ -50,7 +50,7 @@ class Node:
         if self.has_collided(simulation_time, active_transmissions):
             return None
 
-        print(f'{self.id} is receiving')
+        # print(f'{self.id} is receiving')
 
         self.state_counter -= 1
         if self.state_counter == 0:
