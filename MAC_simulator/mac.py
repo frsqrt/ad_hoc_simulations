@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
-from node import Node, NodeState
-from protocols import ALOHA, HighLevelMessage, RTC_CTS_ALOHA
+from node import ALOHANode, State, get_node_by_id
+from transmission import HighLevelMessage
 
 # Parameters
 
@@ -41,14 +41,14 @@ class Visualizer:
         x_coords = [node.x_pos for node in nodes]
         y_coords = [node.y_pos for node in nodes]
         node_circle_range = zip(zip(x_coords, y_coords), [node.transceive_range for node in nodes])
-        colours = [node.get_color_based_on_state() for node in nodes]
+        colours = ['red' for node in nodes]
 
         established_links = [
-            (node.currently_receiving.source.x_pos,
-             node.currently_receiving.source.y_pos,
-             node.x_pos - node.currently_receiving.source.x_pos,
-             node.y_pos - node.currently_receiving.source.y_pos)
-            for node in nodes if node.state == NodeState.Receiving]
+            (get_node_by_id(nodes, node.protocol.currently_receiving.source).x_pos,
+             get_node_by_id(nodes, node.protocol.currently_receiving.source).y_pos,
+             node.x_pos - get_node_by_id(nodes, node.protocol.currently_receiving.source).x_pos,
+             node.y_pos - get_node_by_id(nodes, node.protocol.currently_receiving.source).y_pos)
+            for node in nodes if node.state == State.Receiving]
 
         self.ax.clear()
         self.ax.scatter(x_coords, y_coords, clip_on=False, color=colours)
@@ -59,38 +59,40 @@ class Visualizer:
         for config in node_circle_range:
             self.ax.add_patch(plt.Circle(*config, **self.circle_parameters))
 
-        self.ax.set_xlim((-10, self.x + 10))
-        self.ax.set_ylim((-10, self.y + 10))
+        self.ax.set_xlim((0, self.x))
+        self.ax.set_ylim((0, self.y))
         self.ax.set_aspect('equal')  # Ensure the circles are not distorted
 
         self.ax.set_title('Current network state')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-        plt.pause(0.2)
+        #plt.pause(0.2)
+        input()
 
 
 def main():
     N = 2  # Number of nodes
-    X = 5  # Window size
-    Y = 5  # Window size
+    X = 10  # Window size
+    Y = 10  # Window size
     radius = 0.25  # Radius of each circle
     min_distance = 0.5  # Minimum distance between circles
     transceive_range = 5.0  # Distance a node can send and receive messages
     num_of_transmissions_per_node = 1  # Number of transmissions a node will make
     propagation_time = 1  # Measured in units/time (5 means the message travels 5 units per loop iteration)
 
-    nodes = [Node(0, NodeState.Idle, radius, transceive_range, 1, 1, [], None, [], 0, RTC_CTS_ALOHA(0)),
-             Node(1, NodeState.Idle, radius, transceive_range, 1, 2, [], None, [], 0, RTC_CTS_ALOHA(1)),
-             Node(2, NodeState.Idle, radius, transceive_range, 1, 4, [], None, [], 0, RTC_CTS_ALOHA(2))]
-
-    nodes[0].protocol.generate_packet(HighLevelMessage(2, "hello", 5))
-    nodes[0].protocol.backoff = 2
-    nodes[1].protocol.generate_packet(HighLevelMessage(2, "hello", 5))
-    nodes[1].protocol.backoff = 3
+    nodes = [
+        ALOHANode(0, radius, transceive_range, 1, 1),
+        ALOHANode(1, radius, transceive_range, 1, 6)
+    ]
 
     for node in nodes:
         node.add_neighbors(nodes)
+
+
+    nodes[0].send_schedule = [
+        HighLevelMessage(1, 4, "Hallo", 5)
+    ]
 
     simulation_time = 0
     active_transmissions = []
@@ -100,19 +102,11 @@ def main():
     while True:
         print("simulation_time: ", simulation_time)
 
-        # Plot each circle
         for node in nodes:
-            if node.state == NodeState.Idle:
-                node.idle_state(simulation_time, active_transmissions)
-            elif node.state == NodeState.Sending:
-                node.sending_state()
-            elif node.state == NodeState.Receiving:
-                node.receiving_state(simulation_time, active_transmissions)
+            node.execute_state_machine(simulation_time, active_transmissions)
 
         vis.draw_function(nodes)
-
         simulation_time += 1
-
 
 if __name__ == '__main__':
     main()

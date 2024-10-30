@@ -1,63 +1,92 @@
 from dataclasses import dataclass
 from random import randint
 from typing import Protocol
-
-
-@dataclass
-class HighLevelMessage:
-    target: int
-    content: str
-    length: int
-
-
-@dataclass
-class Message:
-    """
-    This message class is utilized by the protocol layer in order to communicate
-    """
-    target: int
-    source: int
-    sequence_number: int
-    content: str
-    length: int
-
-    def get_ack(self):
-        return Message(self.source, self.target, self.sequence_number, 'ack', 1)
+from transmission import Transmission, HighLevelMessage, Message
 
 
 class MACProtocol(Protocol):
+    def __init__(self):
+        self.backoff = 0
+        self.sequence_number = 0
+        self.currently_transmitting = None
+        self.currently_receiving = None
 
-    buffer: list
+    # The currently transmitted `Transmission`
+    currently_receiving: Message
+
+    # The message we are currently receiving
+    receiving_message: Message
+
+    # Stores the current back-off time
     backoff: int
 
-    def generate_packet(self, message: HighLevelMessage):
-        """
-        This tells the protocol to generate a packet with the given message.
-        The protocol then internally has to push the correct packet, like maybe an RTS into the sending queue
+    # Sequence number for messages
+    sequence_number: int
+    
+    """ 
+    Sets the backoff
 
-        :param message:
-        :return:
-        """
+    :return: Nothing
+    """
+    def set_backoff(self):
+        self.backoff = randint(1, 16)
 
-    def receive_packet(self, message: Message) -> None:
-        """
-        Parse incoming tranmission
-        Checks if the transmission is relevant for this node.
-        Schedules reply transmission into the send_buffer
+
+    """ 
+    Increase sequence number by one
+
+    :return: sequence number
+    """
+    def next_sequence_number(self) -> int:
+        self.sequence_number += 1
+        return self.sequence_number
+    
+    def generate_message(self, source_node: int, message: HighLevelMessage) -> Message:
+        """ 
+        Sets the backoff
+
         :return: Nothing
         """
 
-    def send_packet(self) -> Message:
-        """
-        Keeps track of the back_off (gets called every idle tick), send_schedule, and buffer.
-        Returns a transmission if it is time to send or as a reaction to a cts.
-        Once sent the physical layer should immediately switch to a transmitting state.
 
-        :return:
-        """
-        ...
+class ALOHA(MACProtocol):
+    def __init__(self):
+        super().__init__()
+
+    def set_backoff(self):
+        return super().set_backoff()
+    
+    def generate_message(self, source_node_id: int, message: HighLevelMessage) -> Message:
+        return Message(self.next_sequence_number(), message.target, source_node_id, message.content, message.length)
 
 
+class RTSCTSALOHA(MACProtocol):
+    def __init__(self):
+        super().__init__()
+
+    def set_backoff(self):
+        return super().set_backoff()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
 class RTC_CTS_ALOHA:
     def __init__(self, identifier: int):
         self.id = identifier
@@ -153,51 +182,81 @@ class RTC_CTS_ALOHA:
                 self.ack_await_counter = 0  # after an ack we do not await anything anymore.
 
             return transmission
+"""
 
 
-
+"""
 class ALOHA:
-    def __init__(self, identifier: int):
-        self.id = identifier
-        self.backoff = randint(1, 16)
-        self.ack_await_counter = 0
-        self.buffer: list[Message] = []
-        self.sequence_number = 0
-
-    def get_next_sequence_number(self):
-        self.sequence_number += 1
-        return self.sequence_number
-
-    def generate_packet(self, message: HighLevelMessage):
-        message = Message(message.target, self.id, self.get_next_sequence_number(), message.content, message.length)
-        self.buffer.append(message)
-
-    def receive_packet(self, message: Message) -> None:
-        if message.target != self.id:
-            return
-        # technically a message needs a sequence number,
-        # in theory a stray ack might now delete a random message in the buffer
-        if self.buffer and message.source == self.buffer[0].target and message.content == 'ack' and message.sequence_number == self.buffer[0].sequence_number:
-            print(f'{self.id} received ack')
-            self.ack_await_counter = 0
-            del self.buffer[0]
-            return
-
-        # in all other scenarios it was a message intended for us so we push an ack to the buffer
-        print(f'{self.id} pushing ack to buffer')
-        self.buffer.insert(0, message.get_ack())
+    def __init__(self):
+        self.state = State.Idle
+        self.buffer = []
         self.backoff = 0
+        self.state_counter = 0
 
-    def send_packet(self) -> Message:
-        # if awaiting an ack we should pause the whole system
-        if self.ack_await_counter:
-            self.ack_await_counter -= 1
-            return
-        if not self.buffer:
-            return
+    def execute_state_machine(self, simulation_time: int):
+        if self.state == State.Idle:
+            self.idle_state(simulation_time)
+        elif self.state == State.Receiving:
+            self.receiving_state(simulation_time)
+        elif self.state == State.Sending:
+            self.sending_state(simulation_time)
+        elif self.state == State.BackingOff:
+            self.backing_off_state(simulation_time)
 
-        self.backoff = max(0, self.backoff-1)
-        if self.backoff == 0:
-            self.backoff = randint(1, 16)
-            self.ack_await_counter = 50
-            return self.buffer[0]
+    def idle_state(self, simulation_time: int):
+        pass
+
+    def sending_state(self, simulation_time: int):
+        pass
+
+    def receiving_state(self, simulation_time: int):
+        pass
+
+    def backing_off_state(self, simulation_time: int):
+        pass
+
+    # def __init__(self, identifier: int):
+    #     self.id = identifier
+    #     self.backoff = randint(1, 16)
+    #     self.ack_await_counter = 0
+    #     self.buffer: list[Message] = []
+    #     self.sequence_number = 0
+
+    # def get_next_sequence_number(self):
+    #     self.sequence_number += 1
+    #     return self.sequence_number
+
+    # def generate_packet(self, message: HighLevelMessage):
+    #     message = Message(message.target, self.id, self.get_next_sequence_number(), message.content, message.length)
+    #     self.buffer.append(message)
+
+    # def receive_packet(self, message: Message) -> None:
+    #     if message.target != self.id:
+    #         return
+    #     # technically a message needs a sequence number,
+    #     # in theory a stray ack might now delete a random message in the buffer
+    #     if self.buffer and message.source == self.buffer[0].target and message.content == 'ack' and message.sequence_number == self.buffer[0].sequence_number:
+    #         print(f'{self.id} received ack')
+    #         self.ack_await_counter = 0
+    #         del self.buffer[0]
+    #         return
+
+    #     # in all other scenarios it was a message intended for us so we push an ack to the buffer
+    #     print(f'{self.id} pushing ack to buffer')
+    #     self.buffer.insert(0, message.get_ack())
+    #     self.backoff = 0
+
+    # def send_packet(self) -> Message:
+    #     # if awaiting an ack we should pause the whole system
+    #     if self.ack_await_counter:
+    #         self.ack_await_counter -= 1
+    #         return
+    #     if not self.buffer:
+    #         return
+
+    #     self.backoff = max(0, self.backoff-1)
+    #     if self.backoff == 0:
+    #         self.backoff = randint(1, 16)
+    #         self.ack_await_counter = 50
+    #         return self.buffer[0]
+"""
