@@ -18,17 +18,17 @@ class Node:
     transceive_range: float
     x_pos: float
     y_pos: float
-    neighbors: list['Node']
-    send_schedule: list[HighLevelMessage]
 
+    neighbors: list['Node']
+    # Stores the HighLevelMessages and the node wants to send
+    send_schedule: list[HighLevelMessage]
     state: State
-    state_counter: int
+
     protocol: MACProtocol
 
     def __init__(self):
         self.send_schedule = []
         self.state = State.Idle
-        self.state_counter = 0
         self.neighbors = []
 
     """
@@ -84,7 +84,10 @@ class Node:
         :param simulation_time: current time of the simulation
         """
 
-    def get_receivable_message(self, simulation_time: int, active_transmissions: list[Transmission]) -> list[Message]:
+    """
+    Return all messages the node can currently receive. If more than one gets returned, a collision occured.
+    """
+    def get_receivable_messages(self, simulation_time: int, active_transmissions: list[Transmission]) -> list[Message]:
         def predicate_close_and_arriving(t: Transmission) -> bool:
             lb = t.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, t.message.source))
             ub = t.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, t.message.source)) + t.message.length
@@ -120,48 +123,115 @@ class ALOHANode(Node):
         self.y_pos = y_pos
         self.protocol = ALOHA()
 
+        # State counters - every state has its own counter, 
+        # so we can e.g. still count down `wait_for_answer_counter` while being in thereceiving state
+        self.sending_state_counter = 0
+        self.receiving_state_counter = 0
+        self.waiting_for_answer_state_counter = 0
+        # the backoff counter is inside the protocol
+
         super().__init__()
+
+    def transition_to_receiving(self, message: Message):
+        self.protocol.currently_receiving = message
+        self.state = State.Receiving
+        self.receiving_state_counter = message.length
+        print("\tReceiving: [{}], Transition to {}".format(message, self.state.name))
+
+
+    def transition_to_sending(self, simulation_time: int, high_level_message: HighLevelMessage, active_transmissions: list[Transmission]):
+        message_to_send = self.protocol.generate_message(self.id, high_level_message)
+
+        self.state = State.Sending
+        self.sending_state_counter = message_to_send.length
+        self.protocol.currently_transmitting = message_to_send
+
+        active_transmissions.append(Transmission(simulation_time, message_to_send))
+        print("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
+
+
+    def transition_to_wait_for_answer(self, new_wait_for_answer_counter: int):
+        self.state = State.WaitingForAnswer
+        self.waiting_for_answer_state_counter = new_wait_for_answer_counter
+        print("\tTransition to {}".format(self.state))
+
+
+    def transition_to_idle(self):
+        self.state = State.Idle
+        self.sending_state_counter = 0
+        self.receiving_state_counter = 0
+        self.waiting_for_answer_state_counter = 0
+        self.protocol.backoff = 0
+        self.protocol.currently_receiving = None
+        self.protocol.currently_transmitting = None
+        print("\tTransition to {}".format(self.state))
+
+
+    def transition_to_backoff(self):
+        self.state = State.BackingOff
+        self.protocol.set_backoff()
+        print("\tTransition to {} with backoff={}".format(self.state, self.protocol.backoff))
+
+
+    def process_received_message(self, received_message: Message, simulation_time: int, active_transmissions: list[Transmission]):
+        self.protocol.currently_receiving = None
+        print("\tFinished receiving [{}]".format(received_message))
+
+        # Check whether the message was meant for us
+        if received_message.target != self.id:
+            # Either return to `State.Idle` or `State.WaitingForAnswer`
+            if self.waiting_for_answer_state_counter > 0:
+                # We were in `State.Receiving` for `received_message.length` ticks, so decrease `self.waiting_for_answer_state_counter`
+                # by that amount.
+                self.waiting_for_answer_state_counter -= received_message.length
+                self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter)
+            else:
+                self.transition_to_idle()
+
+            return
+
+        # The message was meant for us
+        message_type = received_message.get_type()
+        if message_type == MessageType.Data:
+            # In case we were waiting for an ACK, we discard the data message and go back into `State.WaitingForAnswer`
+            if self.waiting_for_answer_state_counter > 0:
+                # We were in `State.Receiving` for `received_message.length` ticks, so decrease `self.waiting_for_answer_state_counter`
+                # by that amount.
+                self.waiting_for_answer_state_counter -= received_message.length
+                self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter)
+                return
+            
+            self.transition_to_sending(simulation_time, received_message.get_ack(simulation_time), active_transmissions)
+        elif message_type == MessageType.ACK:
+            # Remove `HighLevelMessage` from `send_schedule` since it was successfully transmitted and we do not want 
+            # to try to retransmit the message at any point
+            self.send_schedule.pop(0)
+            self.transition_to_idle()
 
 
     def idle_state(self, simulation_time: int, active_transmissions: list['Transmission']):
         # Anything to receive?
-        if transmissions := self.get_receivable_message(simulation_time, active_transmissions):
+        if transmissions := self.get_receivable_messages(simulation_time, active_transmissions):
             match transmissions:
                 case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
-                    # Transition to `State.Receiving`
-                    self.protocol.currently_receiving = transmission.message
-                    self.state = State.Receiving
-                    self.state_counter = transmission.message.length
-                    print("\tReceiving: [{}], Transition to {}".format(transmission.message, self.state.name))
+                    self.transition_to_receiving(transmission.message)
                     return
                 case [_, _, *_]:
-                    print(f'has_collided (id: {self.id}): Collision')
-                    self.state = State.Idle
-                    self.state_counter = 0
-                    self.currently_receiving = None
-                    return True
+                    print("\tCollision, received more than one Message at the same time.")
+                    self.transition_to_idle()
+                    return
             
         # Anything to send?
         for high_level_message in self.send_schedule:
             if high_level_message.planned_transmit_time <= simulation_time:
-                # Generate message to send
-                message_to_send = self.protocol.generate_message(self.id, high_level_message)
-
-                # Transition to `State.Sending`
-                self.state = State.Sending
-                self.state_counter = message_to_send.length
-                self.protocol.currently_transmitting = message_to_send
-
-                # Put message on the air                
-                active_transmissions.append(Transmission(simulation_time, message_to_send))
-                print("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
+                self.transition_to_sending(simulation_time, high_level_message, active_transmissions)
                 return
 
 
     def sending_state(self, simulation_time: int):
-        self.state_counter -= 1
-        print("\tstate_counter: {}".format(self.state_counter))
-        if self.state_counter == 0:
+        self.sending_state_counter -= 1
+        print("\tstate_counter: {}".format(self.sending_state_counter))
+        if self.sending_state_counter <= 0:
             # Message is fully sent
             message_type = self.protocol.currently_transmitting.get_type()
 
@@ -169,97 +239,58 @@ class ALOHANode(Node):
 
             # Check whether we sent Data or an ACK
             if message_type == MessageType.Data:
-                self.state = State.WaitingForAnswer
-                self.state_counter = 50
-                print("\tTransition to {}".format(self.state))
+                self.transition_to_wait_for_answer(50)
             elif message_type == MessageType.ACK:
-                self.state = State.Idle
-                print("\tTransition to {}".format(self.state))
+                self.transition_to_idle()
 
 
-    def receiving_state(self, simulation_time: int, active_transmissions: list['Transmission']):
-        if transmissions := self.get_receivable_message(simulation_time, active_transmissions):
+    def receiving_state(self, simulation_time: int, active_transmissions: list[Transmission]):
+        # Check for collisions
+        if transmissions := self.get_receivable_messages(simulation_time, active_transmissions):
             match transmissions:
                 case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
-                    print("\tCollision with [{}]".format(transmission))
-
-                    # Transition to `State.Receiving`
-                    self.protocol.currently_receiving = transmission.message
-                    self.state = State.Receiving
-                    self.state_counter = transmission.message.length
-                    print("\tTransition to {}".format(self.state.name))
+                    if transmission.message != self.protocol.currently_receiving:
+                        print("\tCollision with [{}]".format(transmission.message))
+                        self.transition_to_idle()
+                        return
                 case [_, _, *_]:
-                    print(f'has_collided (id: {self.id}): Collision')
-                    self.state = State.Idle
-                    self.state_counter = 0
-                    self.currently_receiving = None
+                    print("\tCollision, received more than one Message at the same time.")
+                    self.transition_to_idle()
                     return
 
-        self.state_counter -= 1
-        print("\tstate_counter: {}".format(self.state_counter))
-        if self.state_counter == 0:
-            message_type = self.protocol.currently_receiving.get_type()
-            print("\tFinished receiving [{}]".format(self.protocol.currently_receiving))
-            if message_type == MessageType.Data:
-                # Generate ACK message
-                message_to_send = self.protocol.generate_message(self.id, self.protocol.currently_receiving.get_ack(simulation_time))
+        self.receiving_state_counter -= 1
+        print("\tstate_counter: {}".format(self.receiving_state_counter))
+        if self.receiving_state_counter <= 0:
+            self.process_received_message(self.protocol.currently_receiving, simulation_time, active_transmissions)
 
-                # Transition to `State.Sending`
-                self.state = State.Sending
-                self.state_counter = message_to_send.length
-                self.protocol.currently_transmitting = message_to_send
 
-                # Put message on the air                
-                active_transmissions.append(Transmission(simulation_time, message_to_send))
-                print("\tTransition to {}".format(self.state))
-            elif message_type == MessageType.ACK:
-                self.state = State.Idle
-                self.state_counter = 0
-                self.protocol.currently_receiving = None
+    def waiting_for_answer_state(self, simulation_time: int, active_transmissions: list['Transmission']):
+        self.waiting_for_answer_state_counter -= 1
+        print("\tstate_counter: {}".format(self.waiting_for_answer_state_counter))
 
-                # Remove `HighLevelMessage` from `send_schedule` since it was successfully transmitted and we do not want to try to retransmit the message
-                # at any point
-                self.send_schedule.pop(0)
-                print("\tTransition to {}".format(self.state))
+        if self.waiting_for_answer_state_counter <= 0:
+            self.transition_to_backoff()
+            return
+
+        # Anything to receive?
+        if transmissions := self.get_receivable_messages(simulation_time, active_transmissions):
+            match transmissions:
+                case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
+                    self.transition_to_receiving(transmission.message)
+                    return
+                case [_, _, *_]:
+                    print("\tCollision, received more than one Message at the same time.")
+                    self.transition_to_idle()
+                    return
 
 
     def backing_off_state(self, simulation_time: int):
         self.protocol.backoff -= 1
         print("\tbackoff {}".format(self.protocol.backoff))
         if self.protocol.backoff == 0:
-            self.state = State.Idle
-            print("\tTransition to {}".format(self.state))
-
-
-    def waiting_for_answer_state(self, simulation_time: int, active_transmissions: list['Transmission']):
-        self.state_counter -= 1
-
-        # Anything to receive?
-        if transmissions := self.get_receivable_message(simulation_time, active_transmissions):
-            match transmissions:
-                case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
-                    if transmission.message.target == self.id and transmission.message.get_type() == MessageType.ACK:
-                        # Transition to `State.Receiving`
-                        self.protocol.currently_receiving = transmission.message
-                        self.state = State.Receiving
-                        self.state_counter = transmission.message.length
-                        print("\tReceiving: [{}], Transition to {}".format(transmission.message, self.state.name))
-                case [_, _, *_]:
-                    print(f'has_collided (id: {self.id}): Collision')
-                    self.state = State.Idle
-                    self.state_counter = 0
-                    self.currently_receiving = None
-
-            return
-
-        print("\tstate_counter: {}".format(self.state_counter))
-        if self.state_counter == 0:
-            self.state = State.BackingOff
-            self.protocol.set_backoff()
-            print("\tTransition to {} with backoff={}".format(self.state, self.protocol.backoff))
-            return
-                        
+            self.transition_to_idle()
         
+
 def get_distance_between_nodes(n1: Node, n2: Node) -> float:
     return np.sqrt((n1.x_pos - n2.x_pos) ** 2 + (n1.y_pos - n2.y_pos) ** 2)
 

@@ -20,7 +20,6 @@ for i in range(0, N):
 nodes[0].send_schedule.append(n.Transmission(0, nodes[0], 7, 0, n.Message("HALLO", 7)))
 """
 
-
 class Visualizer:
     def __init__(self, x: int, y: int):
         self.fig = None
@@ -83,15 +82,19 @@ def main():
 
     nodes = [
         ALOHANode(0, radius, transceive_range, 1, 1),
-        ALOHANode(1, radius, transceive_range, 1, 6)
+        ALOHANode(1, radius, transceive_range, 1, 6),
+        ALOHANode(2, radius, transceive_range, 1, 2)
     ]
 
     for node in nodes:
         node.add_neighbors(nodes)
 
-
     nodes[0].send_schedule = [
         HighLevelMessage(1, 4, "Hallo", 5)
+    ]
+
+    nodes[2].send_schedule = [
+        HighLevelMessage(0, 10, "Will collide in Receivin", 8)
     ]
 
     simulation_time = 0

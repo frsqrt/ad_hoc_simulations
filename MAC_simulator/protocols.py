@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from random import randint
 from typing import Protocol
-from transmission import Transmission, HighLevelMessage, Message
+from enum import Enum
+from transmission import HighLevelMessage, Message
 
 
 class MACProtocol(Protocol):
@@ -48,8 +49,7 @@ class MACProtocol(Protocol):
         :return: Nothing
         """
 
-
-class ALOHA(MACProtocol):
+class ALOHA(MACProtocol):    
     def __init__(self):
         super().__init__()
 
