@@ -7,7 +7,6 @@ from enum import Enum
 @dataclass
 class HighLevelMessage:
     target: int
-    planned_transmit_time: int
     content: str
     length: int
 
@@ -28,8 +27,8 @@ class Message:
     content: str
     length: int
 
-    def get_ack(self, simulation_time: int) -> HighLevelMessage:
-        return HighLevelMessage(self.source, simulation_time, "ack", 1)
+    def get_ack(self) -> HighLevelMessage:
+        return HighLevelMessage(self.source, "ack", 1)
 
     def get_type(self) -> MessageType:
         message_content_lower = self.content.lower()

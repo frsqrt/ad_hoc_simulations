@@ -30,6 +30,7 @@ class MACProtocol(Protocol):
     :return: Nothing
     """
     def set_backoff(self):
+        # TODO: Configure backoff here properly
         self.backoff = randint(1, 16)
 
 

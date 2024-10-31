@@ -22,6 +22,14 @@ class Node:
     neighbors: list['Node']
     # Stores the HighLevelMessages and the node wants to send
     send_schedule: list[HighLevelMessage]
+
+    # Stores the last received non-meta Message 
+    receive_buffer: Message
+
+    # `receive_buffer` gets copied into `received_message` as soon as the sender receives the ACK
+    # gets consumed using `receive`
+    received_message: Message
+
     state: State
 
     protocol: MACProtocol
@@ -30,6 +38,18 @@ class Node:
         self.send_schedule = []
         self.state = State.Idle
         self.neighbors = []
+        self.receive_buffer = None
+        self.received_message = None
+
+
+    def send(self, message_to_send: HighLevelMessage):
+        self.send_schedule.append(message_to_send)
+
+
+    def receive(self) -> Message | None:
+        received_message_ret = self.received_message
+        self.received_message = None
+        return received_message_ret
 
     """
     Executes one state machine cycle.
@@ -201,11 +221,16 @@ class ALOHANode(Node):
                 self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter)
                 return
             
-            self.transition_to_sending(simulation_time, received_message.get_ack(simulation_time), active_transmissions)
+            self.receive_buffer = received_message # Store the received message into the receive_buffer
+            self.transition_to_sending(simulation_time, received_message.get_ack(), active_transmissions)
         elif message_type == MessageType.ACK:
             # Remove `HighLevelMessage` from `send_schedule` since it was successfully transmitted and we do not want 
             # to try to retransmit the message at any point
             self.send_schedule.pop(0)
+
+            # Copy the `receive_buffer` into `received_message`
+            get_node_by_id(self.neighbors, received_message.source).received_message = get_node_by_id(self.neighbors, received_message.source).receive_buffer
+
             self.transition_to_idle()
 
 
@@ -222,10 +247,10 @@ class ALOHANode(Node):
                     return
             
         # Anything to send?
-        for high_level_message in self.send_schedule:
-            if high_level_message.planned_transmit_time <= simulation_time:
-                self.transition_to_sending(simulation_time, high_level_message, active_transmissions)
-                return
+        message_to_send = self.send_schedule[0] if self.send_schedule else None
+        if message_to_send:
+            self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
+            return
 
 
     def sending_state(self, simulation_time: int):

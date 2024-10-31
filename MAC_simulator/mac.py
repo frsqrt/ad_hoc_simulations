@@ -89,14 +89,6 @@ def main():
     for node in nodes:
         node.add_neighbors(nodes)
 
-    nodes[0].send_schedule = [
-        HighLevelMessage(1, 4, "Hallo", 5)
-    ]
-
-    nodes[2].send_schedule = [
-        HighLevelMessage(0, 10, "Will collide in Receivin", 8)
-    ]
-
     simulation_time = 0
     active_transmissions = []
 
@@ -105,8 +97,26 @@ def main():
     while True:
         print("simulation_time: ", simulation_time)
 
+        if simulation_time == 3:
+            nodes[0].send(HighLevelMessage(2, "Hallo", 5))
+
+        if simulation_time == 4:
+            nodes[0].send(HighLevelMessage(2, "Hallo", 5))
+
+        if simulation_time == 25:
+            nodes[0].send(HighLevelMessage(2, "Hi2", 3))
+
+        if simulation_time == 50:
+            nodes[1].send(HighLevelMessage(0, "Grueße!", 5))
+
         for node in nodes:
             node.execute_state_machine(simulation_time, active_transmissions)
+
+        for node in nodes:
+            msg = node.receive()
+            if msg:
+                print("Node {} received: {}".format(node.id, msg))
+
 
         vis.draw_function(nodes)
         simulation_time += 1
