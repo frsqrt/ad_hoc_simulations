@@ -6,9 +6,6 @@ from aloha_node import ALOHANode
 from rts_cts_node import RTSCTSNode
 from transmission import HighLevelMessage
 
-# Parameters
-
-# Generate random positions while ensuring the minimum distance
 """
 for i in range(0, N):
     new_node = n.create_new_node(i, radius, transceive_range, X, Y)
@@ -43,7 +40,7 @@ class Visualizer:
         x_coords = [node.x_pos for node in nodes]
         y_coords = [node.y_pos for node in nodes]
         node_circle_range = zip(zip(x_coords, y_coords), [node.transceive_range for node in nodes])
-        colours = ['red' for node in nodes]
+        colours = [node.get_color_based_on_state() for node in nodes]
 
         established_links = [
             (get_node_by_id(nodes, node.protocol.currently_receiving.source).x_pos,
@@ -69,7 +66,7 @@ class Visualizer:
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-        plt.pause(0.2)
+        #plt.pause(0.1)
         #input()
 
 
@@ -83,19 +80,22 @@ def main():
     num_of_transmissions_per_node = 1  # Number of transmissions a node will make
     propagation_time = 1  # Measured in units/time (5 means the message travels 5 units per loop iteration)
 
-    logging.basicConfig(format='%(message)s', level=logging.DEBUG)
-
-    # nodes = [
-    #     ALOHANode(0, radius, transceive_range, 1, 1),
-    #     ALOHANode(1, radius, transceive_range, 1, 6),
-    #     ALOHANode(2, radius, transceive_range, 1, 2)
-    # ]
+    logging.basicConfig(format='%(message)s', level=logging.INFO)
 
     nodes = [
-        RTSCTSNode(0, radius, transceive_range, 1, 1),
-        RTSCTSNode(1, radius, transceive_range, 2, 2),
-        RTSCTSNode(2, radius, transceive_range, 4, 4)
+        ALOHANode(0, radius, transceive_range, 1, 1),
+        ALOHANode(1, radius, transceive_range, 1, 4),
+        ALOHANode(2, radius, transceive_range, 1, 2),
+        ALOHANode(3, radius, transceive_range, 1, 3),
+        ALOHANode(4, radius, transceive_range, 2, 1),
+        ALOHANode(5, radius, transceive_range, 3, 4),
     ]
+
+    # nodes = [
+    #     RTSCTSNode(0, radius, transceive_range, 1, 1),
+    #     RTSCTSNode(1, radius, transceive_range, 2, 2),
+    #     RTSCTSNode(2, radius, transceive_range, 4, 4)
+    # ]
 
     for node in nodes:
         node.add_neighbors(nodes)
@@ -109,15 +109,12 @@ def main():
         logging.debug("simulation_time: {}".format(simulation_time))
 
         if simulation_time == 3:
-            nodes[0].send(HighLevelMessage(1, "Hallo", 5))
-            nodes[2].send(HighLevelMessage(0, "Hallo, im ignored", 5))
-
-
-        # if simulation_time == 25:
-        #     nodes[0].send(HighLevelMessage(2, "Hi2", 3))
-
-        # if simulation_time == 50:
-        #     nodes[1].send(HighLevelMessage(0, "Grueße!", 5))
+            nodes[0].send(HighLevelMessage(3, "Hallo from 0", 20))
+            nodes[1].send(HighLevelMessage(2, "Hallo from 1", 4))
+            nodes[2].send(HighLevelMessage(5, "Hallo from 2", 8))
+            nodes[3].send(HighLevelMessage(4, "Hallo from 3", 2))
+            nodes[4].send(HighLevelMessage(1, "Hallo from 4", 3))
+            nodes[5].send(HighLevelMessage(0, "Hallo from 5", 10))
 
         for node in nodes:
             node.execute_state_machine(simulation_time, active_transmissions)

@@ -27,7 +27,7 @@ class ALOHANode(Node):
         elif self.state == State.Sending:
             self.sending_state(simulation_time)   
         elif self.state == State.BackingOff:
-            self.backing_off_state(simulation_time)   
+            self.backing_off_state(simulation_time, active_transmissions)   
         elif self.state == State.WaitingForAnswer:
             self.waiting_for_answer_state(simulation_time, active_transmissions)   
 
@@ -41,6 +41,7 @@ class ALOHANode(Node):
 
     def transition_to_sending(self, simulation_time: int, message_to_send: Message, active_transmissions: list[Transmission]):
         self.state = State.Sending
+        self.protocol.backoff = 0
         self.sending_state_counter = message_to_send.length
         self.protocol.currently_transmitting = message_to_send
 
@@ -50,6 +51,8 @@ class ALOHANode(Node):
 
     def transition_to_wait_for_answer(self, new_wait_for_answer_counter: int, wait_for_cts_counter: int, wait_for_data_counter: int):
         self.state = State.WaitingForAnswer
+        self.protocol.currently_receiving = None
+        self.receiving_state_counter = 0
         self.waiting_for_answer_state_counter = new_wait_for_answer_counter
         logging.debug("\tTransition to {}".format(self.state))
 
@@ -82,6 +85,9 @@ class ALOHANode(Node):
                 # We were in `State.Receiving` for `received_message.length` ticks, so decrease `self.waiting_for_answer_state_counter`
                 # by that amount.
                 self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter - received_message.length, 0, 0)
+            elif self.protocol.backoff > 0:
+                self.protocol.backoff -= received_message.length
+                self.state = State.BackingOff
             else:
                 self.transition_to_idle()
 
@@ -97,7 +103,7 @@ class ALOHANode(Node):
                 self.waiting_for_answer_state_counter -= received_message.length
                 self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter, 0, 0)
                 return
-            
+
             self.receive_buffer = received_message # Store the received message into the receive_buffer
             message_to_send = self.protocol.generate_ack(self.id, received_message.source)
             self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
@@ -143,7 +149,7 @@ class ALOHANode(Node):
 
             # Check whether we sent Data or an ACK
             if message_type == MessageType.Data:
-                self.transition_to_wait_for_answer(50, 0, 0)
+                self.transition_to_wait_for_answer(int(self.transceive_range + self.protocol.currently_transmitting.length) * 2, 0, 0)
             elif message_type == MessageType.ACK:
                 self.transition_to_idle()
 
@@ -155,10 +161,32 @@ class ALOHANode(Node):
                 case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
                     if transmission.message != self.protocol.currently_receiving:
                         logging.debug("\tCollision with [{}]".format(transmission.message))
+                        # If we were waiting for a message, return to waiting
+                        if self.waiting_for_answer_state_counter > 0:
+                            self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter), 0, 0)
+                            return
+                        
+                        # If we were backing off, return to backoff
+                        if self.protocol.backoff > 0:
+                            self.protocol.backoff -= (self.protocol.currently_receiving.length - self.receiving_state_counter)
+                            self.state = State.BackingOff
+                            return
+                        
                         self.transition_to_idle()
                         return
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")
+                    # If we were waiting for a message, return to waiting
+                    if self.waiting_for_answer_state_counter > 0:
+                        self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter), 0, 0)
+                        return  
+                    
+                    # If we were backing off, return to backoff
+                    if self.protocol.backoff > 0:
+                            self.protocol.backoff -= (self.protocol.currently_receiving.length - self.receiving_state_counter)
+                            self.state = State.BackingOff
+                            return
+                    
                     self.transition_to_idle()
                     return
 
@@ -184,12 +212,19 @@ class ALOHANode(Node):
                     return
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")
-                    self.transition_to_idle()
-                    return
 
 
     def backing_off_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
         self.protocol.backoff -= 1
         logging.debug("\tbackoff {}".format(self.protocol.backoff))
-        if self.protocol.backoff == 0:
+        if self.protocol.backoff <= 0:
             self.transition_to_idle()
+
+        # Anything to receive?
+        if transmissions := self.get_receivable_messages(simulation_time, active_transmissions):
+            match transmissions:
+                case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
+                    self.transition_to_receiving(transmission.message)
+                    return
+                case [_, _, *_]:
+                    logging.debug("\tCollision, received more than one Message at the same time.")

@@ -163,6 +163,20 @@ class Node:
                 if distance < (self.radius + node.radius + self.transceive_range):
                     self.neighbors.append(node)
 
+    def get_color_based_on_state(self) -> str:
+        if self.state == State.Idle:
+            return 'red'
+        elif self.state == State.Sending:
+            return 'green'
+        elif self.state == State.Receiving:
+            return 'blue'
+        elif self.state == State.BackingOff:
+            return 'black'
+        elif self.state == State.ReceivedCTSRTSBackoff:
+            return 'orange'
+        elif self.state == State.WaitingForAnswer:
+            return 'purple'
+
     
 
 def get_distance_between_nodes(n1: Node, n2: Node) -> float:
