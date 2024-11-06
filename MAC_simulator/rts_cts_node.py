@@ -32,7 +32,7 @@ class RTSCTSNode(Node):
         self.protocol.backoff = 0
         self.protocol.currently_receiving = None
         self.protocol.currently_transmitting = None
-        print("\tTransition to {}".format(self.state))
+        logging.debug("\tTransition to {}".format(self.state))
 
     
     # Only one of the parameters is allowed to be != 0
@@ -48,13 +48,13 @@ class RTSCTSNode(Node):
         self.wait_for_ack_counter = wait_for_ack_counter
         self.wait_for_cts_counter = wait_for_cts_counter
         self.wait_for_data_counter = wait_for_data_counter
-        print("\tTransition to {}".format(self.state))
+        logging.debug("\tTransition to {}".format(self.state))
 
 
     def transition_to_received_rts_cts_backoff(self, wait_counter):
         self.state = State.ReceivedCTSRTSBackoff
         self.received_rts_cts_backoff_state_counter = wait_counter
-        print("\tTransition to {}".format(self.state))
+        logging.debug("\tTransition to {}".format(self.state))
 
 
     def transition_to_sending(self, simulation_time: int, message_to_send: Message, active_transmissions: list[Transmission]):
@@ -63,24 +63,24 @@ class RTSCTSNode(Node):
         self.protocol.currently_transmitting = message_to_send
 
         active_transmissions.append(Transmission(simulation_time, message_to_send))
-        print("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
+        logging.debug("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
 
 
     def transition_to_receiving(self, message: Message):
         self.protocol.currently_receiving = message
         self.state = State.Receiving
         self.receiving_state_counter = message.length
-        print("\tReceiving: [{}], Transition to {}".format(message, self.state.name))
+        logging.debug("\tReceiving: [{}], Transition to {}".format(message, self.state.name))
 
 
     def transition_to_backoff(self):
         self.state = State.BackingOff
         self.protocol.set_backoff()
-        print("\tTransition to {} with backoff={}".format(self.state, self.protocol.backoff))
+        logging.debug("\tTransition to {} with backoff={}".format(self.state, self.protocol.backoff))
 
 
     def execute_state_machine(self, simulation_time: int, active_transmissions: list[Transmission]):
-        print("node {} - [State: {}]".format(self.id, self.state.name))
+        logging.debug("node {} - [State: {}]".format(self.id, self.state.name))
         if self.state == State.Idle:
             self.idle_state(simulation_time, active_transmissions)
         elif self.state == State.Receiving:
@@ -110,7 +110,7 @@ class RTSCTSNode(Node):
                     self.transition_to_receiving(transmission.message)
                     return
                 case [_, _, *_]:
-                    print("\tCollision, received more than one Message at the same time.")
+                    logging.debug("\tCollision, received more than one Message at the same time.")
                     self.transition_to_idle()
                     return
             
@@ -124,12 +124,12 @@ class RTSCTSNode(Node):
 
     def sending_state(self, simulation_time: int):
         self.sending_state_counter -= 1
-        print("\tstate_counter: {}".format(self.sending_state_counter))
+        logging.debug("\tstate_counter: {}".format(self.sending_state_counter))
         if self.sending_state_counter <= 0:
             # Message is fully sent
             message_type = self.protocol.currently_transmitting.get_type()
 
-            print("\tFinished sending [{}]".format(self.protocol.currently_transmitting))
+            logging.debug("\tFinished sending [{}]".format(self.protocol.currently_transmitting))
 
             if message_type == MessageType.Data:
                 self.transition_to_wait_for_answer(50, 0, 0)
@@ -147,23 +147,23 @@ class RTSCTSNode(Node):
             match transmissions:
                 case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
                     if transmission.message != self.protocol.currently_receiving:
-                        print("\tCollision with [{}]".format(transmission.message))
+                        logging.debug("\tCollision with [{}]".format(transmission.message))
                         self.transition_to_idle()
                         return
                 case [_, _, *_]:
-                    print("\tCollision, received more than one Message at the same time.")
+                    logging.debug("\tCollision, received more than one Message at the same time.")
                     self.transition_to_idle()
                     return
 
         self.receiving_state_counter -= 1
-        print("\tstate_counter: {}".format(self.receiving_state_counter))
+        logging.debug("\tstate_counter: {}".format(self.receiving_state_counter))
         if self.receiving_state_counter <= 0:
             self.process_received_message(self.protocol.currently_receiving, simulation_time, active_transmissions)
 
 
     def process_received_message(self, received_message: Message, simulation_time: int, active_transmissions: list[Transmission]):
         self.protocol.currently_receiving = None
-        print("\tFinished receiving [{}]".format(received_message))
+        logging.debug("\tFinished receiving [{}]".format(received_message))
 
         if self.wait_for_ack_counter > 0:
             # Waiting for ack
@@ -179,7 +179,7 @@ class RTSCTSNode(Node):
                     self.transition_to_idle()
                 else:
                     # Should only be RTS' that could fall in this branch
-                    print("\tReceived message meant for us while waiting for another packet, ignore it")
+                    logging.debug("\tReceived message meant for us while waiting for another packet, ignore it")
                     self.transition_to_wait_for_answer(self.wait_for_ack_counter - received_message.length, 0, 0)
         elif self.wait_for_cts_counter > 0:
             # Waiting for cts
@@ -190,7 +190,7 @@ class RTSCTSNode(Node):
                     self.transition_to_sending(simulation_time, self.protocol.generate_data(self.id, self.send_schedule[0]), active_transmissions)
                 else:
                     # Should only be RTS' that could fall in this branch
-                    print("\tReceived message meant for us while waiting for another packet, ignore it")
+                    logging.debug("\tReceived message meant for us while waiting for another packet, ignore it")
                     self.transition_to_wait_for_answer(0, self.wait_for_cts_counter - received_message.length, 0)
         elif self.wait_for_data_counter > 0:
             # Waiting for data
@@ -202,7 +202,7 @@ class RTSCTSNode(Node):
                     self.transition_to_sending(simulation_time, self.protocol.generate_ack(self.id, received_message.source), active_transmissions)
                 else:
                     # Should only be RTS' that could fall in this branch
-                    print("\tReceived message meant for us while waiting for another packet, ignore it")
+                    logging.debug("\tReceived message meant for us while waiting for another packet, ignore it")
                     self.transition_to_wait_for_answer(0, 0, self.wait_for_data_counter - received_message.length)
         elif self.protocol.backoff > 0:
             # Receiving something while backing off still works if it is a RTS meant for us
@@ -216,11 +216,11 @@ class RTSCTSNode(Node):
             if received_message.target != self.id:
                 message_type = received_message.get_type()
                 if message_type == MessageType.RTS:
-                    print("\tReceived RTS not meant for me, going to wait...")
+                    logging.debug("\tReceived RTS not meant for me, going to wait...")
                     self.transition_to_received_rts_cts_backoff(25)
                     return
                 elif message_type == MessageType.CTS:
-                    print("\tReceived CTS not meant for me, going to wait...")
+                    logging.debug("\tReceived CTS not meant for me, going to wait...")
                     self.transition_to_received_rts_cts_backoff(50)
                     return
 
@@ -230,7 +230,7 @@ class RTSCTSNode(Node):
                 if received_message.get_type() == MessageType.RTS:
                     self.transition_to_sending(simulation_time, self.protocol.generate_cts(self.id, received_message.source), active_transmissions)
                 else:
-                    print("\tReceived message meant for us while in Idle state which is not a RTS, ignoring it")
+                    logging.debug("\tReceived message meant for us while in Idle state which is not a RTS, ignoring it")
                     self.transition_to_idle()
 
 
@@ -246,7 +246,7 @@ class RTSCTSNode(Node):
             self.wait_for_cts_counter -= 1
             state_count = self.wait_for_cts_counter
 
-        print("\tstate_counter: {}".format(state_count))
+        logging.debug("\tstate_counter: {}".format(state_count))
 
         if state_count <= 0:
             self.transition_to_backoff()
@@ -259,21 +259,21 @@ class RTSCTSNode(Node):
                     self.transition_to_receiving(transmission.message)
                     return
                 case [_, _, *_]:
-                    print("\tCollision, received more than one Message at the same time.")
+                    logging.debug("\tCollision, received more than one Message at the same time.")
                     self.transition_to_idle()
                     return
                 
 
     def received_rts_cts_backoff_state(self, simulation_time: int):
         self.received_rts_cts_backoff_state_counter -= 1
-        print("\tstate_counter: {}".format(self.received_rts_cts_backoff_state_counter))
+        logging.debug("\tstate_counter: {}".format(self.received_rts_cts_backoff_state_counter))
         if self.received_rts_cts_backoff_state_counter == 0:
             self.transition_to_idle()
 
 
     def backing_off_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
         self.protocol.backoff -= 1
-        print("\tbackoff {}".format(self.protocol.backoff))
+        logging.debug("\tbackoff {}".format(self.protocol.backoff))
         if self.protocol.backoff == 0:
             self.transition_to_idle()
 
@@ -284,7 +284,7 @@ class RTSCTSNode(Node):
                     self.transition_to_receiving(transmission.message)
                     return
                 case [_, _, *_]:
-                    print("\tCollision, received more than one Message at the same time.")
+                    logging.debug("\tCollision, received more than one Message at the same time.")
                     self.transition_to_idle()
                     return
 

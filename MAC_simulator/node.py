@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
+import logging
 from enum import Enum
 from transmission import HighLevelMessage, Message, Transmission, MessageType
 from protocols import MACProtocol, ALOHA, RTSCTSALOHA

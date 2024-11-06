@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import logging
 
 from node import State, get_node_by_id
 from aloha_node import ALOHANode
@@ -82,6 +83,8 @@ def main():
     num_of_transmissions_per_node = 1  # Number of transmissions a node will make
     propagation_time = 1  # Measured in units/time (5 means the message travels 5 units per loop iteration)
 
+    logging.basicConfig(format='%(message)s', level=logging.DEBUG)
+
     # nodes = [
     #     ALOHANode(0, radius, transceive_range, 1, 1),
     #     ALOHANode(1, radius, transceive_range, 1, 6),
@@ -103,7 +106,7 @@ def main():
     vis = Visualizer(X, Y)
 
     while True:
-        print("simulation_time: ", simulation_time)
+        logging.debug("simulation_time: {}".format(simulation_time))
 
         if simulation_time == 3:
             nodes[0].send(HighLevelMessage(1, "Hallo", 5))
@@ -122,7 +125,7 @@ def main():
         for node in nodes:
             msg = node.receive()
             if msg:
-                print("****\nNode {} received: {}\n****".format(node.id, msg))
+                logging.info("Node {} received: {}".format(node.id, msg))
 
 
         vis.draw_function(nodes)

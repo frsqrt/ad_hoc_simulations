@@ -19,7 +19,7 @@ class ALOHANode(Node):
         super().__init__()
 
     def execute_state_machine(self, simulation_time: int, active_transmissions: list[Transmission]):
-        print("node {} - [State: {}]".format(self.id, self.state.name))
+        logging.debug("node {} - [State: {}]".format(self.id, self.state.name))
         if self.state == State.Idle:
             self.idle_state(simulation_time, active_transmissions)
         elif self.state == State.Receiving:
@@ -36,7 +36,7 @@ class ALOHANode(Node):
         self.protocol.currently_receiving = message
         self.state = State.Receiving
         self.receiving_state_counter = message.length
-        print("\tReceiving: [{}], Transition to {}".format(message, self.state.name))
+        logging.debug("\tReceiving: [{}], Transition to {}".format(message, self.state.name))
 
 
     def transition_to_sending(self, simulation_time: int, message_to_send: Message, active_transmissions: list[Transmission]):
@@ -45,13 +45,13 @@ class ALOHANode(Node):
         self.protocol.currently_transmitting = message_to_send
 
         active_transmissions.append(Transmission(simulation_time, message_to_send))
-        print("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
+        logging.debug("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
 
 
     def transition_to_wait_for_answer(self, new_wait_for_answer_counter: int, wait_for_cts_counter: int, wait_for_data_counter: int):
         self.state = State.WaitingForAnswer
         self.waiting_for_answer_state_counter = new_wait_for_answer_counter
-        print("\tTransition to {}".format(self.state))
+        logging.debug("\tTransition to {}".format(self.state))
 
 
     def transition_to_idle(self):
@@ -62,18 +62,18 @@ class ALOHANode(Node):
         self.protocol.backoff = 0
         self.protocol.currently_receiving = None
         self.protocol.currently_transmitting = None
-        print("\tTransition to {}".format(self.state))
+        logging.debug("\tTransition to {}".format(self.state))
 
 
     def transition_to_backoff(self):
         self.state = State.BackingOff
         self.protocol.set_backoff()
-        print("\tTransition to {} with backoff={}".format(self.state, self.protocol.backoff))
+        logging.debug("\tTransition to {} with backoff={}".format(self.state, self.protocol.backoff))
 
 
     def process_received_message(self, received_message: Message, simulation_time: int, active_transmissions: list[Transmission]):
         self.protocol.currently_receiving = None
-        print("\tFinished receiving [{}]".format(received_message))
+        logging.debug("\tFinished receiving [{}]".format(received_message))
 
         # Check whether the message was meant for us
         if received_message.target != self.id:
@@ -120,7 +120,7 @@ class ALOHANode(Node):
                     self.transition_to_receiving(transmission.message)
                     return
                 case [_, _, *_]:
-                    print("\tCollision, received more than one Message at the same time.")
+                    logging.debug("\tCollision, received more than one Message at the same time.")
                     self.transition_to_idle()
                     return
             
@@ -134,12 +134,12 @@ class ALOHANode(Node):
 
     def sending_state(self, simulation_time: int):
         self.sending_state_counter -= 1
-        print("\tstate_counter: {}".format(self.sending_state_counter))
+        logging.debug("\tstate_counter: {}".format(self.sending_state_counter))
         if self.sending_state_counter <= 0:
             # Message is fully sent
             message_type = self.protocol.currently_transmitting.get_type()
 
-            print("\tFinished sending [{}]".format(self.protocol.currently_transmitting))
+            logging.debug("\tFinished sending [{}]".format(self.protocol.currently_transmitting))
 
             # Check whether we sent Data or an ACK
             if message_type == MessageType.Data:
@@ -154,23 +154,23 @@ class ALOHANode(Node):
             match transmissions:
                 case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
                     if transmission.message != self.protocol.currently_receiving:
-                        print("\tCollision with [{}]".format(transmission.message))
+                        logging.debug("\tCollision with [{}]".format(transmission.message))
                         self.transition_to_idle()
                         return
                 case [_, _, *_]:
-                    print("\tCollision, received more than one Message at the same time.")
+                    logging.debug("\tCollision, received more than one Message at the same time.")
                     self.transition_to_idle()
                     return
 
         self.receiving_state_counter -= 1
-        print("\tstate_counter: {}".format(self.receiving_state_counter))
+        logging.debug("\tstate_counter: {}".format(self.receiving_state_counter))
         if self.receiving_state_counter <= 0:
             self.process_received_message(self.protocol.currently_receiving, simulation_time, active_transmissions)
 
 
     def waiting_for_answer_state(self, simulation_time: int, active_transmissions: list['Transmission']):
         self.waiting_for_answer_state_counter -= 1
-        print("\tstate_counter: {}".format(self.waiting_for_answer_state_counter))
+        logging.debug("\tstate_counter: {}".format(self.waiting_for_answer_state_counter))
 
         if self.waiting_for_answer_state_counter <= 0:
             self.transition_to_backoff()
@@ -183,13 +183,13 @@ class ALOHANode(Node):
                     self.transition_to_receiving(transmission.message)
                     return
                 case [_, _, *_]:
-                    print("\tCollision, received more than one Message at the same time.")
+                    logging.debug("\tCollision, received more than one Message at the same time.")
                     self.transition_to_idle()
                     return
 
 
     def backing_off_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
         self.protocol.backoff -= 1
-        print("\tbackoff {}".format(self.protocol.backoff))
+        logging.debug("\tbackoff {}".format(self.protocol.backoff))
         if self.protocol.backoff == 0:
             self.transition_to_idle()
