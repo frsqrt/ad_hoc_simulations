@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 
-from node import ALOHANode, State, get_node_by_id
+from node import State, get_node_by_id
+from aloha_node import ALOHANode
+from rts_cts_node import RTSCTSNode
 from transmission import HighLevelMessage
 
 # Parameters
@@ -66,8 +68,8 @@ class Visualizer:
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-        #plt.pause(0.2)
-        input()
+        plt.pause(0.2)
+        #input()
 
 
 def main():
@@ -80,10 +82,16 @@ def main():
     num_of_transmissions_per_node = 1  # Number of transmissions a node will make
     propagation_time = 1  # Measured in units/time (5 means the message travels 5 units per loop iteration)
 
+    # nodes = [
+    #     ALOHANode(0, radius, transceive_range, 1, 1),
+    #     ALOHANode(1, radius, transceive_range, 1, 6),
+    #     ALOHANode(2, radius, transceive_range, 1, 2)
+    # ]
+
     nodes = [
-        ALOHANode(0, radius, transceive_range, 1, 1),
-        ALOHANode(1, radius, transceive_range, 1, 6),
-        ALOHANode(2, radius, transceive_range, 1, 2)
+        RTSCTSNode(0, radius, transceive_range, 1, 1),
+        RTSCTSNode(1, radius, transceive_range, 2, 2),
+        RTSCTSNode(2, radius, transceive_range, 4, 4)
     ]
 
     for node in nodes:
@@ -98,16 +106,15 @@ def main():
         print("simulation_time: ", simulation_time)
 
         if simulation_time == 3:
-            nodes[0].send(HighLevelMessage(2, "Hallo", 5))
+            nodes[0].send(HighLevelMessage(1, "Hallo", 5))
+            nodes[2].send(HighLevelMessage(0, "Hallo, im ignored", 5))
 
-        if simulation_time == 4:
-            nodes[0].send(HighLevelMessage(2, "Hallo", 5))
 
-        if simulation_time == 25:
-            nodes[0].send(HighLevelMessage(2, "Hi2", 3))
+        # if simulation_time == 25:
+        #     nodes[0].send(HighLevelMessage(2, "Hi2", 3))
 
-        if simulation_time == 50:
-            nodes[1].send(HighLevelMessage(0, "Grueße!", 5))
+        # if simulation_time == 50:
+        #     nodes[1].send(HighLevelMessage(0, "Grueße!", 5))
 
         for node in nodes:
             node.execute_state_machine(simulation_time, active_transmissions)
@@ -115,7 +122,7 @@ def main():
         for node in nodes:
             msg = node.receive()
             if msg:
-                print("Node {} received: {}".format(node.id, msg))
+                print("****\nNode {} received: {}\n****".format(node.id, msg))
 
 
         vis.draw_function(nodes)

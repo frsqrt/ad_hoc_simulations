@@ -27,16 +27,13 @@ class Message:
     content: str
     length: int
 
-    def get_ack(self) -> HighLevelMessage:
-        return HighLevelMessage(self.source, "ack", 1)
-
     def get_type(self) -> MessageType:
         message_content_lower = self.content.lower()
-        if "rts" in message_content_lower:
+        if "rts" == message_content_lower:
             return MessageType.RTS
-        elif "cts" in message_content_lower:
+        elif "cts" == message_content_lower:
             return MessageType.CTS
-        elif "ack" in message_content_lower:
+        elif "ack" == message_content_lower:
             return MessageType.ACK
         else:
             return MessageType.Data
