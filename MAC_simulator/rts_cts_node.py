@@ -351,8 +351,10 @@ class RTSCTSNode(Node):
         if self.received_rts_cts_backoff_state_counter == 0:
             if self.protocol.backoff > 0:
                 self.transition_to_backoff(self.protocol.backoff)
+                return
             else:
                 self.transition_to_idle()
+                return
 
         # Anything to receive?
         if transmissions := self.get_receivable_messages(simulation_time, active_transmissions):
@@ -367,8 +369,10 @@ class RTSCTSNode(Node):
     def backing_off_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
         self.protocol.backoff -= 1
         logging.debug("\tbackoff {}".format(self.protocol.backoff))
+
         if self.protocol.backoff <= 0:
             self.transition_to_idle()
+            return
 
         # Anything to receive?
         if transmissions := self.get_receivable_messages(simulation_time, active_transmissions):
