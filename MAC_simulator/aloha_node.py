@@ -45,7 +45,7 @@ class ALOHANode(Node):
         self.sending_state_counter = message_to_send.length
         self.protocol.currently_transmitting = message_to_send
 
-        active_transmissions.append(Transmission(simulation_time, message_to_send))
+        active_transmissions.append(Transmission(simulation_time + 1, message_to_send))
         logging.debug("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
 
 
@@ -245,6 +245,5 @@ class ALOHANode(Node):
             match transmissions:
                 case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
                     self.transition_to_receiving(transmission.message)
-                    return
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")

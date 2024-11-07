@@ -66,7 +66,7 @@ class RTSCTSNode(Node):
         self.sending_state_counter = message_to_send.length
         self.protocol.currently_transmitting = message_to_send
 
-        active_transmissions.append(Transmission(simulation_time, message_to_send))
+        active_transmissions.append(Transmission(simulation_time + 1, message_to_send))
         logging.debug("\tWants to send [{}], transition to {}".format(message_to_send, self.state.name))
 
 
@@ -296,8 +296,6 @@ class RTSCTSNode(Node):
                 # Message was meant for us
                 if received_message.get_type() == MessageType.RTS:
                     self.transition_to_sending(simulation_time, self.protocol.generate_cts(self.id, received_message.source, self.transceive_range, received_message.get_message_length()), active_transmissions)
-                else:
-                    logging.INFO("This should not happen")
         else:
             # Waiting for rts
             if received_message.target != self.id:
