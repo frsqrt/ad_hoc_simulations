@@ -67,7 +67,7 @@ class Visualizer:
         self.fig.canvas.flush_events()
 
         #plt.pause(0.1)
-        #input()
+        input()
 
 
 def main():
@@ -77,25 +77,17 @@ def main():
     radius = 0.25  # Radius of each circle
     min_distance = 0.5  # Minimum distance between circles
     transceive_range = 5.0  # Distance a node can send and receive messages
-    num_of_transmissions_per_node = 1  # Number of transmissions a node will make
-    propagation_time = 1  # Measured in units/time (5 means the message travels 5 units per loop iteration)
 
-    logging.basicConfig(format='%(message)s', level=logging.INFO)
+    logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
     nodes = [
-        ALOHANode(0, radius, transceive_range, 1, 1),
-        ALOHANode(1, radius, transceive_range, 1, 4),
-        ALOHANode(2, radius, transceive_range, 1, 2),
-        ALOHANode(3, radius, transceive_range, 1, 3),
-        ALOHANode(4, radius, transceive_range, 2, 1),
-        ALOHANode(5, radius, transceive_range, 3, 4),
+        RTSCTSNode(0, radius, transceive_range, 1, 1),
+        RTSCTSNode(1, radius, transceive_range, 1, 4),
+        RTSCTSNode(2, radius, transceive_range, 1, 2),
+        RTSCTSNode(3, radius, transceive_range, 1, 3),
+        RTSCTSNode(4, radius, transceive_range, 2, 1),
+        RTSCTSNode(5, radius, transceive_range, 3, 4),
     ]
-
-    # nodes = [
-    #     RTSCTSNode(0, radius, transceive_range, 1, 1),
-    #     RTSCTSNode(1, radius, transceive_range, 2, 2),
-    #     RTSCTSNode(2, radius, transceive_range, 4, 4)
-    # ]
 
     for node in nodes:
         node.add_neighbors(nodes)
@@ -109,12 +101,14 @@ def main():
         logging.debug("simulation_time: {}".format(simulation_time))
 
         if simulation_time == 3:
-            nodes[0].send(HighLevelMessage(3, "Hallo from 0", 20))
-            nodes[1].send(HighLevelMessage(2, "Hallo from 1", 4))
-            nodes[2].send(HighLevelMessage(5, "Hallo from 2", 8))
-            nodes[3].send(HighLevelMessage(4, "Hallo from 3", 2))
-            nodes[4].send(HighLevelMessage(1, "Hallo from 4", 3))
-            nodes[5].send(HighLevelMessage(0, "Hallo from 5", 10))
+            nodes[0].send(HighLevelMessage(5, "Hallo from 0", 5))
+            nodes[1].send(HighLevelMessage(4, "Hallo from 1", 20))
+            nodes[2].send(HighLevelMessage(3, "Hallo from 2", 7))
+            nodes[3].send(HighLevelMessage(2, "Hallo from 3", 2))
+            nodes[4].send(HighLevelMessage(1, "Hallo from 4", 30))
+            nodes[5].send(HighLevelMessage(0, "Hallo from 5", 4))
+
+
 
         for node in nodes:
             node.execute_state_machine(simulation_time, active_transmissions)
@@ -124,7 +118,7 @@ def main():
             if msg:
                 logging.info("Node {} received: {}".format(node.id, msg))
 
-
+        # 353, 378
         vis.draw_function(nodes)
         simulation_time += 1
 

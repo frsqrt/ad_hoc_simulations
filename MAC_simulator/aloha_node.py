@@ -52,6 +52,7 @@ class ALOHANode(Node):
     def transition_to_wait_for_answer(self, new_wait_for_answer_counter: int, wait_for_cts_counter: int, wait_for_data_counter: int):
         self.state = State.WaitingForAnswer
         self.protocol.currently_receiving = None
+        self.protocol.currently_transmitting = None
         self.receiving_state_counter = 0
         self.waiting_for_answer_state_counter = new_wait_for_answer_counter
         logging.debug("\tTransition to {}".format(self.state))

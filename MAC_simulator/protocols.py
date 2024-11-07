@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from random import randint
 from typing import Protocol
 from enum import Enum
-from transmission import HighLevelMessage, Message, MessageType
+from transmission import HighLevelMessage, Message
 
 
 class MACProtocol(Protocol):
@@ -40,11 +40,6 @@ class MACProtocol(Protocol):
         self.max_backoff = 16
 
 
-    """ 
-    Increase sequence number by one
-
-    :return: sequence number
-    """
     def next_sequence_number(self) -> int:
         self.sequence_number += 1
         return self.sequence_number
@@ -67,7 +62,7 @@ class ALOHA(MACProtocol):
         return super().set_backoff()
     
 
-class RTSCTSALOHA(MACProtocol):
+class RTSCTSALOHA(MACProtocol): 
     def __init__(self):
         super().__init__()
 
@@ -76,9 +71,11 @@ class RTSCTSALOHA(MACProtocol):
         return super().set_backoff()
     
 
-    def generate_rts(self, source_id: int, target_id: int):
-        return Message(self.next_sequence_number(), target_id, source_id, "rts", 1)
+    def generate_rts(self, source_id: int, target_id: int, node_distance: int, data_length: int):
+        # wait for: propagation time * 3 + message length + CTS + ACK
+        return Message(self.next_sequence_number(), target_id, source_id, f"rts {int(node_distance * 3 + data_length + 1 + 1)} {int(data_length)}", 1)
     
     
-    def generate_cts(self, source_id: int, target_id: int):
-        return Message(self.next_sequence_number(), target_id, source_id, "cts", 1)
+    def generate_cts(self, source_id: int, target_id: int, node_distance: int, data_length: int):
+        # wait for: propagation time * 2 + message length + ACK
+        return Message(self.next_sequence_number(), target_id, source_id, f"cts {int(node_distance * 2 + data_length + 1)}", 1)

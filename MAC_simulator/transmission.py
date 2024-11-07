@@ -28,7 +28,7 @@ class Message:
     length: int
 
     def get_type(self) -> MessageType:
-        message_content_lower = self.content.lower()
+        message_content_lower = self.content.lower()[0:3]
         if "rts" == message_content_lower:
             return MessageType.RTS
         elif "cts" == message_content_lower:
@@ -37,6 +37,17 @@ class Message:
             return MessageType.ACK
         else:
             return MessageType.Data
+        
+
+    def get_waiting_time(self) -> int:
+        if self.get_type() == MessageType.RTS or self.get_type() == MessageType.CTS:
+            return int(self.content.split(" ")[1])
+        else:
+            return 0
+    
+
+    def get_message_length(self) -> int:
+        return int(self.content.split(" ")[2])
 
 """
 `Transmission` is a wrapper for `Message` to include planned and actual transmission times.
