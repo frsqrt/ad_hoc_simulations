@@ -124,7 +124,7 @@ class Node:
         """
 
 
-    def transition_to_backoff(self):
+    def transition_to_backoff(self, new_backoff: int | None = None):
         """
         Transition to Backoff
         """

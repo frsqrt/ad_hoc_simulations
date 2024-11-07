@@ -68,54 +68,23 @@ class ALOHANode(Node):
         logging.debug("\tTransition to {}".format(self.state))
 
 
-    def transition_to_backoff(self):
+    def transition_to_backoff(self, new_backoff: int | None = None):
         self.state = State.BackingOff
-        self.protocol.set_backoff()
+        self.protocol.currently_receiving = None
+        self.waiting_for_answer_state_counter = 0
+        self.receiving_state_counter = 0
+        if new_backoff == None:
+            self.protocol.set_backoff()
+        else:
+            self.protocol.backoff = new_backoff
         logging.debug("\tTransition to {} with backoff={}".format(self.state, self.protocol.backoff))
 
 
-    def process_received_message(self, received_message: Message, simulation_time: int, active_transmissions: list[Transmission]):
-        self.protocol.currently_receiving = None
-        logging.debug("\tFinished receiving [{}]".format(received_message))
-
-        # Check whether the message was meant for us
-        if received_message.target != self.id:
-            # Either return to `State.Idle` or `State.WaitingForAnswer`
-            if self.waiting_for_answer_state_counter > 0:
-                # We were in `State.Receiving` for `received_message.length` ticks, so decrease `self.waiting_for_answer_state_counter`
-                # by that amount.
-                self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter - received_message.length, 0, 0)
-            elif self.protocol.backoff > 0:
-                self.protocol.backoff -= received_message.length
-                self.state = State.BackingOff
-            else:
-                self.transition_to_idle()
-
-            return
-
-        # The message was meant for us
-        message_type = received_message.get_type()
-        if message_type == MessageType.Data:
-            # In case we were waiting for an ACK, we discard the data message and go back into `State.WaitingForAnswer`
-            if self.waiting_for_answer_state_counter > 0:
-                # We were in `State.Receiving` for `received_message.length` ticks, so decrease `self.waiting_for_answer_state_counter`
-                # by that amount.
-                self.waiting_for_answer_state_counter -= received_message.length
-                self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter, 0, 0)
-                return
-
-            self.receive_buffer = received_message # Store the received message into the receive_buffer
-            message_to_send = self.protocol.generate_ack(self.id, received_message.source)
-            self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
-        elif message_type == MessageType.ACK:
-            # Remove `HighLevelMessage` from `send_schedule` since it was successfully transmitted and we do not want 
-            # to try to retransmit the message at any point
-            self.send_schedule.pop(0)
-
-            # Copy the `receive_buffer` into `received_message`
-            get_node_by_id(self.neighbors, received_message.source).received_message = get_node_by_id(self.neighbors, received_message.source).receive_buffer
-
-            self.transition_to_idle()
+    #################################################################################################################################
+    #################################################################################################################################
+    #                                                   Begin state implementations
+    #################################################################################################################################
+    #################################################################################################################################
 
 
     def idle_state(self, simulation_time: int, active_transmissions: list['Transmission']):
@@ -149,6 +118,7 @@ class ALOHANode(Node):
 
             # Check whether we sent Data or an ACK
             if message_type == MessageType.Data:
+                # Wait for the time it would take for a node at the edge of the transceive range to send back a message of the same length
                 self.transition_to_wait_for_answer(int(self.transceive_range + self.protocol.currently_transmitting.length) * 2, 0, 0)
             elif message_type == MessageType.ACK:
                 self.transition_to_idle()
@@ -163,13 +133,14 @@ class ALOHANode(Node):
                         logging.debug("\tCollision with [{}]".format(transmission.message))
                         # If we were waiting for a message, return to waiting
                         if self.waiting_for_answer_state_counter > 0:
-                            self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter), 0, 0)
+                            new_wait_for_answer_state_counter = self.waiting_for_answer_state_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter)
+                            self.transition_to_wait_for_answer(new_wait_for_answer_state_counter, 0, 0)
                             return
                         
                         # If we were backing off, return to backoff
                         if self.protocol.backoff > 0:
-                            self.protocol.backoff -= (self.protocol.currently_receiving.length - self.receiving_state_counter)
-                            self.state = State.BackingOff
+                            new_backoff = self.protocol.backoff - (self.protocol.currently_receiving.length - self.receiving_state_counter)
+                            self.transition_to_backoff(new_backoff)
                             return
                         
                         self.transition_to_idle()
@@ -178,14 +149,15 @@ class ALOHANode(Node):
                     logging.debug("\tCollision, received more than one Message at the same time.")
                     # If we were waiting for a message, return to waiting
                     if self.waiting_for_answer_state_counter > 0:
-                        self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter), 0, 0)
-                        return  
+                        new_wait_for_answer_state_counter = self.waiting_for_answer_state_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_wait_for_answer(new_wait_for_answer_state_counter, 0, 0)
+                        return
                     
                     # If we were backing off, return to backoff
                     if self.protocol.backoff > 0:
-                            self.protocol.backoff -= (self.protocol.currently_receiving.length - self.receiving_state_counter)
-                            self.state = State.BackingOff
-                            return
+                        new_backoff = self.protocol.backoff - (self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_backoff(new_backoff)
+                        return
                     
                     self.transition_to_idle()
                     return
@@ -194,6 +166,53 @@ class ALOHANode(Node):
         logging.debug("\tstate_counter: {}".format(self.receiving_state_counter))
         if self.receiving_state_counter <= 0:
             self.process_received_message(self.protocol.currently_receiving, simulation_time, active_transmissions)
+
+
+    def process_received_message(self, received_message: Message, simulation_time: int, active_transmissions: list[Transmission]):
+        self.protocol.currently_receiving = None
+        logging.debug("\tFinished receiving [{}]".format(received_message))
+
+        # Check whether the message was meant for us
+        if received_message.target != self.id:
+            # Either return to `State.Idle`, `State.WaitingForAnswer` or `State.BackingOff`
+            if self.waiting_for_answer_state_counter > 0:
+                # We were in `State.Receiving` for `received_message.length` ticks, so decrease `self.waiting_for_answer_state_counter`
+                # by that amount.
+                self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter - received_message.length, 0, 0)
+            elif self.protocol.backoff > 0:
+                new_backoff = self.protocol.backoff - (received_message.length - self.receiving_state_counter)
+                self.transition_to_backoff(new_backoff)
+            else:
+                self.transition_to_idle()
+
+            return
+
+        # The message was meant for us
+        message_type = received_message.get_type()
+        if message_type == MessageType.Data:
+            # In case we were waiting for an ACK, we discard the data message and go back into `State.WaitingForAnswer`
+            if self.waiting_for_answer_state_counter > 0:
+                # We were in `State.Receiving` for `received_message.length` ticks, so decrease `self.waiting_for_answer_state_counter`
+                # by that amount.
+                self.waiting_for_answer_state_counter -= received_message.length
+                self.transition_to_wait_for_answer(self.waiting_for_answer_state_counter, 0, 0)
+                return
+
+            self.receive_buffer = received_message # Store the received message into the receive_buffer
+            message_to_send = self.protocol.generate_ack(self.id, received_message.source)
+            self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
+        elif message_type == MessageType.ACK:
+            # Remove `HighLevelMessage` from `send_schedule` since it was successfully transmitted and we do not want 
+            # to try to retransmit the message at any point
+            self.send_schedule.pop(0)
+
+            # Copy the `receive_buffer` into `received_message`
+            get_node_by_id(self.neighbors, received_message.source).received_message = get_node_by_id(self.neighbors, received_message.source).receive_buffer
+
+            # When receiving an ACK the backoff can be reset
+            self.protocol.reset_max_backoff()
+
+            self.transition_to_idle()
 
 
     def waiting_for_answer_state(self, simulation_time: int, active_transmissions: list['Transmission']):
