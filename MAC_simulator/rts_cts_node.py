@@ -121,6 +121,7 @@ class RTSCTSNode(Node):
                     return
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")
+                    self.collision_counter += 1
                     self.transition_to_idle()
                     return
             
@@ -160,7 +161,7 @@ class RTSCTSNode(Node):
                 case [transmission] if transmission.transmit_time + self.get_packet_travel_time(get_node_by_id(self.neighbors, transmission.message.source)) == simulation_time:
                     if transmission.message != self.protocol.currently_receiving:
                         logging.debug("\tCollision with [{}]".format(transmission.message))
-
+                        self.collision_counter += 1
                         # If we were waiting for a message, return to waiting
                         if self.wait_for_ack_counter > 0:
                             new_wait_for_answer_state_counter = self.wait_for_ack_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter)
@@ -190,7 +191,7 @@ class RTSCTSNode(Node):
                         return
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")
-
+                    self.collision_counter += 1
                     # If we were waiting for a message, return to waiting
                     if self.wait_for_ack_counter > 0:
                         new_wait_for_answer_state_counter = self.wait_for_ack_counter - (self.protocol.currently_receiving.length - self.receiving_state_counter)
@@ -343,6 +344,7 @@ class RTSCTSNode(Node):
                     self.transition_to_receiving(transmission.message)
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")
+                    self.collision_counter += 1
                 
 
     def received_rts_cts_backoff_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
@@ -363,6 +365,7 @@ class RTSCTSNode(Node):
                     self.transition_to_receiving(transmission.message)
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")
+                    self.collision_counter += 1
 
 
     def backing_off_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
@@ -380,5 +383,6 @@ class RTSCTSNode(Node):
                     self.transition_to_receiving(transmission.message)
                 case [_, _, *_]:
                     logging.debug("\tCollision, received more than one Message at the same time.")
+                    self.collision_counter += 1
 
         

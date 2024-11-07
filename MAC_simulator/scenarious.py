@@ -1,4 +1,5 @@
 import logging
+import csv
 from node import Node
 from dataclasses import dataclass
 from transmission import HighLevelMessage, Message
@@ -14,12 +15,27 @@ class PlannedTransmission:
 
 @dataclass
 class Scenario:
+    name: str
     radius: float
     transceive_range: float
     nodes: list[Node]
     send_schedule: list[PlannedTransmission]
     expected_received_messages: int
     received_message_counter: int
+
+
+    def get_collision_count(self):
+        cnt = 0
+        for node in self.nodes:
+            cnt += node.collision_counter
+
+        return cnt
+
+
+    def report(self, simulation_time: int):
+        with open(f"./data/{self.name}.csv", mode='a+', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([simulation_time, self.get_collision_count()])
 
     
     def setup(self):
@@ -54,12 +70,12 @@ class Scenario:
                 self.received_message_counter += 1
 
                 if self.received_message_counter == self.expected_received_messages:
-                    logging.info("All messages received")
-                    logging.info(f"simulation_time: {simulation_time}")
+                    self.report(simulation_time)
                     exit(0)
 
 
 data_sink_rts_cts = Scenario(
+    "data_sink_rts_cts",
     0.25, 
     5,
     [
@@ -80,6 +96,7 @@ data_sink_rts_cts = Scenario(
 )
 
 data_sink_aloha = Scenario(
+    "data_sink_aloha",
     0.25, 
     5,
     [

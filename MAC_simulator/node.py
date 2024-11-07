@@ -22,6 +22,7 @@ class Node:
     x_pos: float
     y_pos: float
     neighbors: list['Node']
+    collision_counter: int
 
     # Stores the HighLevelMessages that the node wants to send
     send_schedule: list[HighLevelMessage]
@@ -43,6 +44,7 @@ class Node:
         self.neighbors = []
         self.receive_buffer = None
         self.received_message = None
+        self.collision_counter = 0
 
 
     def send(self, message_to_send: HighLevelMessage):
