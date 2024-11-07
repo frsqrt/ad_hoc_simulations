@@ -365,7 +365,6 @@ class RTSCTSNode(Node):
                     logging.debug("\tCollision, received more than one Message at the same time.")
 
 
-
     def backing_off_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
         self.protocol.backoff -= 1
         logging.debug("\tbackoff {}".format(self.protocol.backoff))

@@ -6,6 +6,8 @@ from aloha_node import ALOHANode
 from rts_cts_node import RTSCTSNode
 from transmission import HighLevelMessage
 
+from scenarious import data_sink_aloha as scen
+
 """
 for i in range(0, N):
     new_node = n.create_new_node(i, radius, transceive_range, X, Y)
@@ -67,59 +69,29 @@ class Visualizer:
         self.fig.canvas.flush_events()
 
         #plt.pause(0.1)
-        input()
+        #input()
 
 
 def main():
     N = 2  # Number of nodes
     X = 10  # Window size
     Y = 10  # Window size
-    radius = 0.25  # Radius of each circle
-    min_distance = 0.5  # Minimum distance between circles
-    transceive_range = 5.0  # Distance a node can send and receive messages
 
-    logging.basicConfig(format='%(message)s', level=logging.DEBUG)
-
-    nodes = [
-        RTSCTSNode(0, radius, transceive_range, 1, 1),
-        RTSCTSNode(1, radius, transceive_range, 1, 4),
-        RTSCTSNode(2, radius, transceive_range, 1, 2),
-        RTSCTSNode(3, radius, transceive_range, 1, 3),
-        RTSCTSNode(4, radius, transceive_range, 2, 1),
-        RTSCTSNode(5, radius, transceive_range, 3, 4),
-    ]
-
-    for node in nodes:
-        node.add_neighbors(nodes)
+    logging.basicConfig(format='%(message)s', level=logging.INFO)
 
     simulation_time = 0
     active_transmissions = []
+
+    scen.setup()
 
     vis = Visualizer(X, Y)
 
     while True:
         logging.debug("simulation_time: {}".format(simulation_time))
 
-        if simulation_time == 3:
-            nodes[0].send(HighLevelMessage(5, "Hallo from 0", 5))
-            nodes[1].send(HighLevelMessage(4, "Hallo from 1", 20))
-            nodes[2].send(HighLevelMessage(3, "Hallo from 2", 7))
-            nodes[3].send(HighLevelMessage(2, "Hallo from 3", 2))
-            nodes[4].send(HighLevelMessage(1, "Hallo from 4", 30))
-            nodes[5].send(HighLevelMessage(0, "Hallo from 5", 4))
+        scen.run(simulation_time, active_transmissions)
 
-
-
-        for node in nodes:
-            node.execute_state_machine(simulation_time, active_transmissions)
-
-        for node in nodes:
-            msg = node.receive()
-            if msg:
-                logging.info("Node {} received: {}".format(node.id, msg))
-
-        # 353, 378
-        vis.draw_function(nodes)
+        vis.draw_function(scen.nodes)
         simulation_time += 1
 
 if __name__ == '__main__':
