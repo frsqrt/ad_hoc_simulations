@@ -350,7 +350,7 @@ class RTSCTSNode(Node):
     def received_rts_cts_backoff_state(self, simulation_time: int, active_transmissions: list[HighLevelMessage]):
         self.received_rts_cts_backoff_state_counter -= 1
         logging.debug("\tstate_counter: {}".format(self.received_rts_cts_backoff_state_counter))
-        if self.received_rts_cts_backoff_state_counter == 0:
+        if self.received_rts_cts_backoff_state_counter <= 0:
             if self.protocol.backoff > 0:
                 self.transition_to_backoff(self.protocol.backoff)
                 return
