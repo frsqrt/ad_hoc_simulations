@@ -230,6 +230,10 @@ class RTSCTSNode(Node):
         self.protocol.currently_receiving = None
         logging.debug("\tFinished receiving [{}]".format(received_message))
 
+        if received_message.get_type() == MessageType.BROADCAST:
+            self.receive_buffer = received_message
+            return
+
         if self.wait_for_ack_counter > 0:
             # Waiting for ack
             if received_message.target != self.id:

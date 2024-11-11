@@ -14,7 +14,8 @@ class MessageType(Enum):
     Data = 0,
     RTS = 1,
     CTS = 2,
-    ACK = 3
+    ACK = 3,
+    BROADCAST = 4
 
 """
 `Message` is used for RTS, CTS, ACK and data messages.
@@ -29,7 +30,9 @@ class Message:
 
     def get_type(self) -> MessageType:
         message_content_lower = self.content.lower()[0:3]
-        if "rts" == message_content_lower:
+        if self.target == -1:
+            return MessageType.BROADCAST
+        elif "rts" == message_content_lower:
             return MessageType.RTS
         elif "cts" == message_content_lower:
             return MessageType.CTS
