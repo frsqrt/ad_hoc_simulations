@@ -9,6 +9,12 @@ class HighLevelMessage:
     target: int
     content: str
     length: int
+    route_target: int = None
+    route_source: int = None
+
+    def configure_routing(self, next, origin):
+        return HighLevelMessage(next, self.content, self.length, self.target, origin)
+
 
 class MessageType(Enum):
     Data = 0,
@@ -27,12 +33,31 @@ class Message:
     source: int
     content: str
     length: int
+    route_target: int
+    route_source: int
+
+    def __init__(self, sequence_number: int, target: int, source: int,
+                 content: str, length: int, route_target: int = None, route_source: int = None):
+        self.sequence_number: int = sequence_number
+        self.target: int = target
+        self.source: int = source
+        self.content: str = content
+        self.length: int = length
+        if route_target is None:
+            self.route_target = self.target
+        else:
+            self.route_target = route_target
+        if route_source is None:
+            self.route_source = self.source
+        else:
+            self.route_source = route_source
+
 
     def get_type(self) -> MessageType:
-        message_content_lower = self.content.lower()[0:3]
         if self.target == -1:
             return MessageType.BROADCAST
-        elif "rts" == message_content_lower:
+        message_content_lower = self.content.lower()[0:3]
+        if "rts" == message_content_lower:
             return MessageType.RTS
         elif "cts" == message_content_lower:
             return MessageType.CTS

@@ -6,7 +6,8 @@ from aloha_node import ALOHANode
 from rts_cts_node import RTSCTSNode
 from transmission import HighLevelMessage
 
-from scenarious import data_sink_aloha as scen
+# from scenarious import data_sink_rts_cts_25_random_max_100 as scen
+from scenarious_routing import Routing_1_aloha as scen
 
 """
 for i in range(0, N):
@@ -38,7 +39,7 @@ class Visualizer:
         self.ax.set_title("Template title")
         self.fig.show()
 
-    def draw_function(self, nodes):
+    def draw_function(self, nodes, sim_time):
         x_coords = [node.x_pos for node in nodes]
         y_coords = [node.y_pos for node in nodes]
         node_circle_range = zip(zip(x_coords, y_coords), [node.transceive_range for node in nodes])
@@ -64,7 +65,7 @@ class Visualizer:
         self.ax.set_ylim((0, self.y))
         self.ax.set_aspect('equal')  # Ensure the circles are not distorted
 
-        self.ax.set_title('Current network state')
+        self.ax.set_title(f'Current network state {sim_time}')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
@@ -74,8 +75,8 @@ class Visualizer:
 
 def main():
     N = 2  # Number of nodes
-    X = 10  # Window size
-    Y = 10  # Window size
+    X = 20  # Window size
+    Y = 20  # Window size
 
     logging.basicConfig(format='%(message)s', level=logging.INFO)
 
@@ -91,7 +92,7 @@ def main():
 
         scen.run(simulation_time, active_transmissions)
 
-        vis.draw_function(scen.nodes)
+        vis.draw_function(scen.nodes, simulation_time)
         simulation_time += 1
 
 if __name__ == '__main__':

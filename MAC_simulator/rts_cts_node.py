@@ -128,8 +128,12 @@ class RTSCTSNode(Node):
         # Anything to send?
         message_to_send = self.send_schedule[0] if self.send_schedule else None
         if message_to_send:
-            # Just assume every node is as far away from each other as possible -> node_distance = self.transceive_range
-            message_to_send = self.protocol.generate_rts(self.id, self.send_schedule[0].target, self.transceive_range, self.send_schedule[0].length)
+            if message_to_send.target == -1:
+                message_to_send = self.protocol.generate_broadcast(self.id, message_to_send)
+                del self.send_schedule[0]  # Broadcasts are never resend
+            else:
+                # Just assume every node is as far away from each other as possible -> node_distance = self.transceive_range
+                message_to_send = self.protocol.generate_rts(self.id, self.send_schedule[0].target, self.transceive_range, self.send_schedule[0].length)
             self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
             return
 
@@ -151,6 +155,8 @@ class RTSCTSNode(Node):
                 # Add +10 buffer since we will receive the data packet and that might be larger (this might be completely unnessecary, but it shouldn't do any harm)
                 self.transition_to_wait_for_answer(0, 0, int(self.transceive_range + self.protocol.currently_transmitting.length + 10) * 2)
             elif message_type == MessageType.ACK:
+                self.transition_to_idle()
+            elif message_type == MessageType.BROADCAST:
                 self.transition_to_idle()
 
 
@@ -231,8 +237,7 @@ class RTSCTSNode(Node):
         logging.debug("\tFinished receiving [{}]".format(received_message))
 
         if received_message.get_type() == MessageType.BROADCAST:
-            self.receive_buffer = received_message
-            return
+            self.received_message = received_message
 
         if self.wait_for_ack_counter > 0:
             # Waiting for ack

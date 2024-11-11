@@ -104,7 +104,11 @@ class ALOHANode(Node):
         # Anything to send?
         message_to_send = self.send_schedule[0] if self.send_schedule else None
         if message_to_send:
-            message_to_send = self.protocol.generate_data(self.id, self.send_schedule[0])
+            if message_to_send.target == -1:
+                message_to_send = self.protocol.generate_broadcast(self.id, message_to_send)
+                del self.send_schedule[0]  # Broadcasts are never resend
+            else:
+                message_to_send = self.protocol.generate_data(self.id, self.send_schedule[0])
             self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
             return
 
@@ -123,6 +127,8 @@ class ALOHANode(Node):
                 # Wait for the time it would take for a node at the edge of the transceive range to send back a message of the same length
                 self.transition_to_wait_for_answer(int(self.transceive_range + self.protocol.currently_transmitting.length) * 2, 0, 0)
             elif message_type == MessageType.ACK:
+                self.transition_to_idle()
+            elif message_type == MessageType.BROADCAST:
                 self.transition_to_idle()
 
 
@@ -177,8 +183,7 @@ class ALOHANode(Node):
         logging.debug("\tFinished receiving [{}]".format(received_message))
 
         if received_message.get_type() == MessageType.BROADCAST:
-            self.receive_buffer = received_message
-            return
+            self.received_message = received_message
 
         # Check whether the message was meant for us
         if received_message.target != self.id:

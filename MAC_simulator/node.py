@@ -3,7 +3,8 @@ import numpy as np
 import logging
 from enum import Enum
 from transmission import HighLevelMessage, Message, Transmission, MessageType
-from protocols import MACProtocol, ALOHA, RTSCTSALOHA
+from protocols import MACProtocol, ALOHA, RTSCTSALOHA, DSDVRoutingProtocol
+
 
 class State(Enum):
     Idle = 0,
@@ -37,6 +38,7 @@ class Node:
     state: State
 
     protocol: MACProtocol
+    routing_protocol: DSDVRoutingProtocol
 
     def __init__(self):
         self.send_schedule = []
@@ -179,7 +181,7 @@ class Node:
         elif self.state == State.WaitingForAnswer:
             return 'purple'
 
-    
+
 
 def get_distance_between_nodes(n1: Node, n2: Node) -> float:
     return np.sqrt((n1.x_pos - n2.x_pos) ** 2 + (n1.y_pos - n2.y_pos) ** 2)
