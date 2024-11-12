@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from random import randint
 from typing import Protocol
+from collections import defaultdict
 
 from transmission import HighLevelMessage, Message, MessageType
 
@@ -9,7 +10,7 @@ from transmission import HighLevelMessage, Message, MessageType
 @dataclass
 class DSDVEntry:
     next: int
-    distance_metric: int
+    distance_metric: int | float
     seq: int
 
 
@@ -18,7 +19,9 @@ class DSDVRoutingProtocol:
     def __init__(self, id: int):
         # maps the target to its respective table entry
         self.table: dict[int: DSDVEntry] = {id: DSDVEntry(id, 0, 0)}
-        self.share_table_backoff = randint(0, 500)
+        self.staleness: dict[int: int] = defaultdict(lambda: 0)
+        self.max_share_table_backoff = 50
+        self.share_table_backoff = randint(0, self.max_share_table_backoff)
         self.id = id
         self.buffer: list[HighLevelMessage] = []
         self.sequence = 0
@@ -37,18 +40,31 @@ class DSDVRoutingProtocol:
         Either triggers a broadcast or pushes a message to the buffer depending on if we still have something waiting on a route.
         :return:
         """
+        # Check for lost connections
+        self.check_staleness()
+
         if self.buffer:
             for msg in self.buffer:
-                if msg.target in self.table:
+                if msg.target in self.table and self.table[msg.target].distance_metric != float('inf'):
                     self.buffer.remove(msg)
                     return msg.configure_routing(self.table[msg.target].next, self.id)
 
         self.share_table_backoff -= 1
         if self.share_table_backoff <= 0:
-            self.share_table_backoff = randint(0, 500)
+            self.share_table_backoff = randint(0, self.max_share_table_backoff)
             self.sequence += 2
             self.table[self.id].seq = self.sequence
             return HighLevelMessage(-1, self.table, 1)
+
+    def check_staleness(self):
+        for node in self.staleness:
+            self.staleness[node] += 1
+            if (self.staleness[node] > 4 * self.max_share_table_backoff
+                    and self.table[node].seq % 2 == 0
+                    and self.table[node].next == node):
+                logging.info(f'Staleness detected for node {node}; detected by node {self.id}.')
+                self.table[node].seq += 1
+                self.table[node].distance_metric = float('inf')
 
     def reply(self, msg: Message, distance: int) -> HighLevelMessage | None:
         """
@@ -58,6 +74,8 @@ class DSDVRoutingProtocol:
         :param distance: calculated based on "signal strength" by the scenario.
         :return: Either nothing or another message, be it table broadcast or to pass along a route finding messge.
         """
+
+        self.staleness[msg.source] = 0
 
         if msg.get_type() == MessageType.Data:
             # takes care of an actual route that needs to be walked.
@@ -78,18 +96,18 @@ class DSDVRoutingProtocol:
         # prevent lookup errors.
         for target in table:
             if target not in self.table:
-                self.table[target] = DSDVEntry(-1, 100000000, -1)
+                self.table[target] = DSDVEntry(-1, float('inf'), -1)
         for target, entry in table.items():
             current_entry = self.table[target]
             adjusted_distance = entry.distance_metric + distance
 
             # Check staleness and distance.
-            if entry.seq > current_entry.seq and current_entry.distance_metric > adjusted_distance:
+            if entry.seq > current_entry.seq and current_entry.distance_metric >= adjusted_distance:
                 self.table[target] = DSDVEntry(msg.source, adjusted_distance, entry.seq)
 
             # Check odd sequence number in case of infinite distance.
             elif entry.seq % 2 == 1 and entry.seq > current_entry.seq:
-                self.table[target] = DSDVEntry(target, -1, entry.seq)
+                self.table[target] = DSDVEntry(entry.next, entry.distance_metric, entry.seq)
 
 
 class MACProtocol(Protocol):

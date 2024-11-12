@@ -68,13 +68,19 @@ class Scenario:
         for node in self.nodes:
             msg = node.receive()
             if msg:
-                logging.info("Node {} received: {}".format(node.id, msg))
+                logging.debug("Node {} received: {}".format(node.id, msg))
                 reply = node.routing_protocol.reply(msg, node.get_packet_travel_time(get_node_by_id(self.nodes, msg.source)))
             else:
                 reply = node.routing_protocol.tick()
             if reply:
-                logging.info("Node {} wants to send: {}".format(node.id, reply))
+                logging.debug("Node {} wants to send: {}".format(node.id, reply))
                 node.send(reply)
+        if simulation_time == 250:
+            logging.info('Removing node 3 as sender from the network')
+            self.nodes[3].send = lambda _: None
+
+        if simulation_time == 600:
+            logging.info(f'{self.nodes[0].routing_protocol.table}')
 
         # for node in self.nodes:
         #     msg = node.receive()
