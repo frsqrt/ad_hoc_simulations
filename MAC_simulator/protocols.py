@@ -140,7 +140,7 @@ class MACProtocol(Protocol):
 
     def set_backoff(self):
         self.backoff = randint(self.min_backoff, self.max_backoff)
-        if self.max_backoff < 1024:
+        if self.max_backoff < 256:
             self.max_backoff *= 2
 
 

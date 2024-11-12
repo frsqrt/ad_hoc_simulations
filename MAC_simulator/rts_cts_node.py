@@ -137,7 +137,6 @@ class RTSCTSNode(Node):
                     self.send_schedule[0].target = self.routing_protocol.get_next(self.send_schedule[0].route_target)
                 # Just assume every node is as far away from each other as possible -> node_distance = self.transceive_range
                 message_to_send = self.protocol.generate_rts(self.id, self.send_schedule[0].target, self.transceive_range, self.send_schedule[0].length)
-                logging.info(f'node {self.id} attempting to send {message_to_send}')
             self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
             return
 
@@ -148,6 +147,9 @@ class RTSCTSNode(Node):
         if self.sending_state_counter <= 0:
             # Message is fully sent
             message_type = self.protocol.currently_transmitting.get_type()
+            msg = repr(self.protocol.currently_transmitting)
+            if 'DSDV' not in msg:
+                logging.info(f'node {self.id} attempted to send {msg}')
 
             logging.debug("\tFinished sending [{}]".format(self.protocol.currently_transmitting))
 
@@ -369,20 +371,31 @@ class RTSCTSNode(Node):
 
     def waiting_for_answer_state(self, simulation_time: int, active_transmissions: list['Transmission']):
         state_count = 0
+        backoff_flag = False
         if self.wait_for_data_counter != 0:
             self.wait_for_data_counter -= 1
             state_count = self.wait_for_data_counter
         elif self.wait_for_ack_counter != 0:
             self.wait_for_ack_counter -= 1
             state_count = self.wait_for_ack_counter
+            backoff_flag = True
         elif self.wait_for_cts_counter != 0:
             self.wait_for_cts_counter -= 1
             state_count = self.wait_for_cts_counter
 
         logging.debug("\tstate_counter: {}".format(state_count))
 
+        # if state_count <= 0 and backoff_flag:
         if state_count <= 0:
+            logging.info(f'{self.id} waited for too long, going back to backoff state')
             self.transition_to_backoff()
+            return
+
+
+        if state_count <= 0:
+            # currently unreachable but this was an attempt I tried to fix the cts backoff.
+            self.transition_to_idle()
+            logging.info(f'{self.id} waited for too long, going back to idle state')
             return
 
         # Anything to receive?

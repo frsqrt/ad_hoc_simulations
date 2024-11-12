@@ -72,6 +72,14 @@ class Message:
             return int(self.content.split(" ")[1])
         else:
             return 0
+
+    def __repr__(self):
+        return (f'Message(sequence_number={self.sequence_number},'
+                f'target={self.target}, source={self.source},'
+                f'content={str(self.content)[:10]},'
+                f'length={self.length},'
+                f'route_target={self.route_target},'
+                f'route_source={self.route_source})')
     
 
     def get_message_length(self) -> int:

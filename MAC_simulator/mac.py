@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import logging
 
 from node import State, get_node_by_id
+import numpy as np
+import random
 from aloha_node import ALOHANode
 from rts_cts_node import RTSCTSNode
 from transmission import HighLevelMessage
@@ -73,10 +75,27 @@ class Visualizer:
         #input()
 
 
+def run_scenario(scenario) -> tuple[int, int, int]:
+    scenario.setup()
+    simulation_time = 0
+    active_transmissions = []
+
+    while True:
+        result = scenario.run(simulation_time, active_transmissions)
+        if result:
+            return result
+        simulation_time += 1
+
+
+
+
 def main():
     N = 2  # Number of nodes
     X = 10  # Window size
     Y = 10  # Window size
+
+    np.random.seed(42)
+    random.seed(42)
 
     logging.basicConfig(format='%(message)s', level=logging.INFO)
 
@@ -90,7 +109,9 @@ def main():
     while True:
         logging.debug("simulation_time: {}".format(simulation_time))
 
-        scen.run(simulation_time, active_transmissions)
+        result = scen.run(simulation_time, active_transmissions)
+        if result:
+            break
 
         vis.draw_function(scen.nodes, simulation_time)
         simulation_time += 1

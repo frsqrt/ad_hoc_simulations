@@ -7,6 +7,8 @@ from enum import Enum
 from transmission import HighLevelMessage, Message, Transmission, MessageType
 from protocols import MACProtocol, ALOHA, RTSCTSALOHA, DSDVRoutingProtocol
 
+np.random.seed(42)
+
 
 class State(Enum):
     Idle = 0,
@@ -68,8 +70,12 @@ class Node:
         if self.y_pos == 0 or self.y_pos == 10:
             self.y_vel = 0
 
-        self.x_vel += randint(-1, 1)
-        self.y_vel += randint(-1, 1)
+        # self.x_vel += randint(-1, 1)
+        # self.y_vel += randint(-1, 1)
+
+
+        self.x_vel += np.random.normal()
+        self.y_vel += np.random.normal()
 
         self.x_vel = min(max(self.x_vel, -5), 5)
         self.y_vel = min(max(self.y_vel, -5), 5)
