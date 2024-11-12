@@ -109,6 +109,10 @@ class ALOHANode(Node):
                 del self.send_schedule[0]  # Broadcasts are never resend
             else:
                 message_to_send = self.protocol.generate_data(self.id, self.send_schedule[0])
+                # Because nodes are dynamic we need to continuously update our target
+                if self.routing_protocol:
+                    message_to_send.target = self.routing_protocol.get_next(message_to_send.route_target)
+                logging.info(f'node {self.id} attempting to send {message_to_send}')
             self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
             return
 
@@ -171,6 +175,24 @@ class ALOHANode(Node):
                     
                     self.transition_to_idle()
                     return
+                case []:
+                    logging.info('Node moved out of range as communication was occuring, resetting to idle')
+                    if self.waiting_for_answer_state_counter > 0:
+                        new_wait_for_answer_state_counter = self.waiting_for_answer_state_counter - (
+                                    self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_wait_for_answer(new_wait_for_answer_state_counter, 0, 0)
+                        return
+
+                    # If we were backing off, return to backoff
+                    if self.protocol.backoff > 0:
+                        new_backoff = self.protocol.backoff - (
+                                    self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_backoff(new_backoff)
+                        return
+
+                    self.transition_to_idle()
+                    return
+
 
         self.receiving_state_counter -= 1
         logging.debug("\tstate_counter: {}".format(self.receiving_state_counter))

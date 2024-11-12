@@ -20,11 +20,14 @@ class DSDVRoutingProtocol:
         # maps the target to its respective table entry
         self.table: dict[int: DSDVEntry] = {id: DSDVEntry(id, 0, 0)}
         self.staleness: dict[int: int] = defaultdict(lambda: 0)
-        self.max_share_table_backoff = 50
+        self.max_share_table_backoff = 200
         self.share_table_backoff = randint(0, self.max_share_table_backoff)
         self.id = id
         self.buffer: list[HighLevelMessage] = []
         self.sequence = 0
+
+    def get_next(self, target: int) -> int:
+        return self.table[target].next
 
     def send(self, msg: HighLevelMessage):
         """
@@ -62,7 +65,7 @@ class DSDVRoutingProtocol:
             if (self.staleness[node] > 4 * self.max_share_table_backoff
                     and self.table[node].seq % 2 == 0
                     and self.table[node].next == node):
-                logging.info(f'Staleness detected for node {node}; detected by node {self.id}.')
+                logging.debug(f'Staleness detected for node {node}; detected by node {self.id}.')
                 self.table[node].seq += 1
                 self.table[node].distance_metric = float('inf')
 

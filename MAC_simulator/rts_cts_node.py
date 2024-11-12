@@ -132,8 +132,12 @@ class RTSCTSNode(Node):
                 message_to_send = self.protocol.generate_broadcast(self.id, message_to_send)
                 del self.send_schedule[0]  # Broadcasts are never resend
             else:
+                # Because nodes are dynamic we need to continuously update our target
+                if self.routing_protocol:
+                    self.send_schedule[0].target = self.routing_protocol.get_next(self.send_schedule[0].route_target)
                 # Just assume every node is as far away from each other as possible -> node_distance = self.transceive_range
                 message_to_send = self.protocol.generate_rts(self.id, self.send_schedule[0].target, self.transceive_range, self.send_schedule[0].length)
+                logging.info(f'node {self.id} attempting to send {message_to_send}')
             self.transition_to_sending(simulation_time, message_to_send, active_transmissions)
             return
 
@@ -225,6 +229,41 @@ class RTSCTSNode(Node):
 
                     self.transition_to_idle()
                     return
+                case []:
+                    logging.info('we were receiving but moved out of range.')
+                    # If we were waiting for a message, return to waiting
+                    if self.wait_for_ack_counter > 0:
+                        new_wait_for_answer_state_counter = self.wait_for_ack_counter - (
+                                    self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_wait_for_answer(new_wait_for_answer_state_counter, 0, 0)
+                        return
+                    elif self.wait_for_cts_counter > 0:
+                        new_wait_for_answer_state_counter = self.wait_for_cts_counter - (
+                                    self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_wait_for_answer(0, new_wait_for_answer_state_counter, 0)
+                        return
+                    elif self.wait_for_data_counter > 0:
+                        new_wait_for_answer_state_counter = self.wait_for_data_counter - (
+                                    self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_wait_for_answer(0, 0, new_wait_for_answer_state_counter)
+                        return
+
+                        # Just go back in case of collision
+                    if self.received_rts_cts_backoff_state_counter > 0:
+                        self.transition_to_received_rts_cts_backoff(self.received_rts_cts_backoff_state_counter - (
+                                    self.protocol.currently_receiving.length - self.receiving_state_counter))
+                        return
+
+                        # If we were backing off, return to backoff
+                    if self.protocol.backoff > 0:
+                        new_backoff = self.protocol.backoff - (
+                                    self.protocol.currently_receiving.length - self.receiving_state_counter)
+                        self.transition_to_backoff(new_backoff)
+                        return
+
+                    self.transition_to_idle()
+                    return
+
 
         self.receiving_state_counter -= 1
         logging.debug("\tstate_counter: {}".format(self.receiving_state_counter))

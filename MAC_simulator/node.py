@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from random import randint
+
 import numpy as np
 import logging
 from enum import Enum
@@ -25,6 +27,9 @@ class Node:
     neighbors: list['Node']
     collision_counter: int
 
+    x_vel: float
+    y_vel: float
+
     # Stores the HighLevelMessages that the node wants to send
     send_schedule: list[HighLevelMessage]
 
@@ -48,6 +53,26 @@ class Node:
         self.received_message = None
         self.collision_counter = 0
 
+        self.x_vel = 0
+        self.y_vel = 0
+
+    def move(self):
+        self.x_pos += self.x_vel * 0.001
+        self.y_pos += self.y_vel * 0.001
+
+        self.x_pos = min(max(self.x_pos, 0), 10)
+        self.y_pos = min(max(self.y_pos, 0), 10)
+
+        if self.x_pos == 0 or self.x_pos == 10:
+            self.x_vel = 0
+        if self.y_pos == 0 or self.y_pos == 10:
+            self.y_vel = 0
+
+        self.x_vel += randint(-1, 1)
+        self.y_vel += randint(-1, 1)
+
+        self.x_vel = min(max(self.x_vel, -5), 5)
+        self.y_vel = min(max(self.y_vel, -5), 5)
 
     def send(self, message_to_send: HighLevelMessage):
         self.send_schedule.append(message_to_send)
@@ -160,6 +185,7 @@ class Node:
 
 
     def add_neighbors(self, nodes):
+        self.neighbors = []
         for node in nodes:
             if node.id != self.id:
                 distance = get_distance_between_nodes(self, node)

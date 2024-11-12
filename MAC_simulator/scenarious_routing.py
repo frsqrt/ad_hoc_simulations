@@ -5,7 +5,7 @@ from node import Node, get_node_by_id
 from dataclasses import dataclass
 
 from protocols import DSDVRoutingProtocol
-from transmission import HighLevelMessage, Message
+from transmission import HighLevelMessage, Message, MessageType
 from rts_cts_node import RTSCTSNode
 from aloha_node import ALOHANode
 
@@ -41,7 +41,6 @@ class Scenario:
 
     def setup(self):
         for node in self.nodes:
-            node.add_neighbors(self.nodes)
             node.routing_protocol = DSDVRoutingProtocol(node.id)
 
 
@@ -63,24 +62,36 @@ class Scenario:
         self.send_messages(simulation_time)
 
         for node in self.nodes:
+            node.move()
+            node.add_neighbors(self.nodes)
+
+        for node in self.nodes:
             node.execute_state_machine(simulation_time, active_transmissions)
 
         for node in self.nodes:
             msg = node.receive()
             if msg:
-                logging.debug("Node {} received: {}".format(node.id, msg))
+                if msg.get_type() == MessageType.Data:
+                    logging.info("Node {} received: {}".format(node.id, msg))
                 reply = node.routing_protocol.reply(msg, node.get_packet_travel_time(get_node_by_id(self.nodes, msg.source)))
             else:
                 reply = node.routing_protocol.tick()
             if reply:
                 logging.debug("Node {} wants to send: {}".format(node.id, reply))
                 node.send(reply)
-        if simulation_time == 250:
-            logging.info('Removing node 3 as sender from the network')
-            self.nodes[3].send = lambda _: None
+        # if simulation_time == 250:
+        #     logging.info('Removing node 3 as sender from the network')
+        #     self.nodes[3]._shadow = self.nodes[3].send
+        #     self.nodes[3].send = lambda _: None
+        #
+        # if simulation_time == 550:
+        #     logging.info(f'{self.nodes[0].routing_protocol.table}')
+        #     self.nodes[3].send = self.nodes[3]._shadow
+        #     logging.info('Adding node 3 as sender to the network')
+        #
+        # if simulation_time == 750:
+        #     logging.info(f'{self.nodes[0].routing_protocol.table}')
 
-        if simulation_time == 600:
-            logging.info(f'{self.nodes[0].routing_protocol.table}')
 
         # for node in self.nodes:
         #     msg = node.receive()
@@ -98,12 +109,18 @@ Routing_1_aloha = Scenario(
     0.25,
     3,
     [
-        ALOHANode(0, 0.25, 3, 1, 5), # sink
-        ALOHANode(1, 0.25, 3, 2, 7),
-        ALOHANode(2, 0.25, 3, 3, 3),
-        ALOHANode(3, 0.25, 3, 4, 7),
-        ALOHANode(4, 0.25, 3, 5, 3),
-        ALOHANode(5, 0.25, 3, 6, 5)  # source
+        RTSCTSNode(0, 0.25, 3, 1, 5), # sink
+        RTSCTSNode(1, 0.25, 3, 2, 7),
+        RTSCTSNode(2, 0.25, 3, 3, 3),
+        RTSCTSNode(3, 0.25, 3, 4, 7),
+        RTSCTSNode(4, 0.25, 3, 5, 3),
+        RTSCTSNode(6, 0.25, 3, 5, 3),
+        RTSCTSNode(7, 0.25, 3, 5, 3),
+        RTSCTSNode(8, 0.25, 3, 5, 3),
+        RTSCTSNode(9, 0.25, 3, 5, 3),
+        RTSCTSNode(10, 0.25, 3, 5, 3),
+        RTSCTSNode(11, 0.25, 3, 5, 3),
+        RTSCTSNode(5, 0.25, 3, 6, 5)  # source
     ],
     [
         PlannedTransmission(2, HighLevelMessage(0, "Hello from 5", 5), 5)

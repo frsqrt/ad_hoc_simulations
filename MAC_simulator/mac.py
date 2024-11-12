@@ -75,8 +75,8 @@ class Visualizer:
 
 def main():
     N = 2  # Number of nodes
-    X = 20  # Window size
-    Y = 20  # Window size
+    X = 10  # Window size
+    Y = 10  # Window size
 
     logging.basicConfig(format='%(message)s', level=logging.INFO)
 
