@@ -129,7 +129,7 @@ class ALOHANode(Node):
             # Check whether we sent Data or an ACK
             if message_type == MessageType.Data:
                 # Wait for the time it would take for a node at the edge of the transceive range to send back a message of the same length
-                self.transition_to_wait_for_answer(int(self.transceive_range + self.protocol.currently_transmitting.length) * 2, 0, 0)
+                self.transition_to_wait_for_answer(int(self.transceive_range + self.protocol.currently_transmitting.length) * 2 + 1, 0, 0)
             elif message_type == MessageType.ACK:
                 self.transition_to_idle()
             elif message_type == MessageType.BROADCAST:

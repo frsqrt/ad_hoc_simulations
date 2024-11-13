@@ -154,9 +154,9 @@ class RTSCTSNode(Node):
             logging.debug("\tFinished sending [{}]".format(self.protocol.currently_transmitting))
 
             if message_type == MessageType.Data:
-                self.transition_to_wait_for_answer(int(self.transceive_range + self.protocol.currently_transmitting.length) * 2, 0, 0)
+                self.transition_to_wait_for_answer(int(self.transceive_range + self.protocol.currently_transmitting.length) * 2 + 1, 0, 0)
             elif message_type == MessageType.RTS:
-                self.transition_to_wait_for_answer(0, int(self.transceive_range + self.protocol.currently_transmitting.length) * 2, 0)
+                self.transition_to_wait_for_answer(0, int(self.transceive_range + self.protocol.currently_transmitting.length) * 2 + 1, 0)
             elif message_type == MessageType.CTS:
                 # Add +10 buffer since we will receive the data packet and that might be larger (this might be completely unnessecary, but it shouldn't do any harm)
                 self.transition_to_wait_for_answer(0, 0, int(self.transceive_range + self.protocol.currently_transmitting.length + 10) * 2)
