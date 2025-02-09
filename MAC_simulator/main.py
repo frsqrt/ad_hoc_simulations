@@ -86,9 +86,6 @@ def run_scenario(scenario) -> tuple[int, int, int]:
             return result
         simulation_time += 1
 
-
-
-
 def main():
     N = 2  # Number of nodes
     X = 10  # Window size

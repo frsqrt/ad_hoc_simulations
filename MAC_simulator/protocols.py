@@ -113,7 +113,7 @@ class DSDVRoutingProtocol:
                 self.table[target] = DSDVEntry(entry.next, entry.distance_metric, entry.seq)
 
 
-class MACProtocol(Protocol):
+class MACProtocol():
     def __init__(self):
         self.backoff = 0
         self.max_backoff = 16
